@@ -49,9 +49,12 @@ class ProductionAdminController extends Controller
             'shift' => $shift,
             'shiftOptions' => $this->shiftOptions(),
             'buyers' => Buyer::orderBy('name')->get(),
-            'parts' => Part::orderBy('code')->get(),
+            'parts' => Part::with('buyer')
+                ->when($type === 'hasil', fn ($query) => $query->where('classification', 'FG'))
+                ->orderBy('code')
+                ->get(),
             'sizes' => SizeVariant::orderBy('code')->get(),
-            'spks' => Spk::with('buyer')
+            'spks' => Spk::with(['buyer', 'part', 'sizeVariant'])
                 ->whereIn('status', ['Pending', 'Material Prepared', 'In Production'])
                 ->latest()
                 ->get(),
@@ -362,6 +365,18 @@ class ProductionAdminController extends Controller
         }
 
         if ($spk) {
+            if ($requiresPart && $spk->part_id && isset($validated['part_id']) && (int) $validated['part_id'] !== (int) $spk->part_id) {
+                return back()
+                    ->withErrors(['part_id' => 'Part harus sesuai dengan part di SPK.'])
+                    ->withInput();
+            }
+
+            if ($requiresPart && isset($validated['part_id']) && ! $this->partMatchesBuyer((int) $validated['part_id'], (int) $spk->buyer_id)) {
+                return back()
+                    ->withErrors(['part_id' => 'Part tidak sesuai dengan buyer SPK.'])
+                    ->withInput();
+            }
+
             $validated['buyer_id'] = $spk->buyer_id;
             $validated['part_id'] = $requiresPart ? ($validated['part_id'] ?? $spk->part_id) : null;
             $validated['size_variant_id'] = $requiresPart ? ($validated['size_variant_id'] ?? $spk->size_variant_id) : null;
@@ -485,6 +500,14 @@ class ProductionAdminController extends Controller
         }
 
         if ($spk) {
+            if ($requiresPart && $spk->part_id && isset($validated['part_id']) && (int) $validated['part_id'] !== (int) $spk->part_id) {
+                return response()->json(['message' => 'Part harus sesuai dengan part di SPK.', 'errors' => ['part_id' => ['Part harus sesuai dengan part di SPK.']]], 422);
+            }
+
+            if ($requiresPart && isset($validated['part_id']) && ! $this->partMatchesBuyer((int) $validated['part_id'], (int) $spk->buyer_id)) {
+                return response()->json(['message' => 'Part tidak sesuai dengan buyer SPK.', 'errors' => ['part_id' => ['Part tidak sesuai dengan buyer SPK.']]], 422);
+            }
+
             $validated['buyer_id'] = $spk->buyer_id;
             $validated['part_id'] = $requiresPart ? ($validated['part_id'] ?? $spk->part_id) : null;
             $validated['size_variant_id'] = $requiresPart ? ($validated['size_variant_id'] ?? $spk->size_variant_id) : null;
@@ -756,6 +779,13 @@ class ProductionAdminController extends Controller
     private function processRequiresPart(Process $process): bool
     {
         return $process->is_fg_process || strcasecmp($process->name, 'Packing') === 0;
+    }
+
+    private function partMatchesBuyer(int $partId, int $buyerId): bool
+    {
+        $part = Part::find($partId);
+
+        return $part && (! $part->buyer_id || (int) $part->buyer_id === $buyerId);
     }
 
     private function syncSpkStatus(?Spk $spk): void

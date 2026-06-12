@@ -481,6 +481,56 @@ class ProductionAdminTest extends TestCase
         $resultPage->assertSee('name="size_variant_id"', false);
     }
 
+    public function test_fg_input_filters_parts_by_selected_spk_buyer(): void
+    {
+        $amazon = Buyer::factory()->create(['name' => 'Amazon']);
+        $wayfair = Buyer::factory()->create(['name' => 'Wayfair']);
+        $amazonPart = Part::factory()->create(['buyer_id' => $amazon->id, 'classification' => 'FG', 'code' => 'AMZ-12Q']);
+        $wayfairPart = Part::factory()->create(['buyer_id' => $wayfair->id, 'classification' => 'FG', 'code' => 'WF-14Q']);
+        $genericPart = Part::factory()->create(['buyer_id' => null, 'classification' => 'FG', 'code' => 'GEN-10T']);
+        Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
+        $spk = Spk::factory()->create(['buyer_id' => $amazon->id, 'spk_no' => 'SPK-AMZ-001']);
+
+        $response = $this->get('/input-hasil');
+
+        $response->assertOk();
+        $response->assertSee('data-buyer-id="'.$amazon->id.'"', false);
+        $response->assertSee('data-part-id="'.$amazonPart->id.'"', false);
+        $response->assertSee('data-part-buyer-id="'.$amazon->id.'"', false);
+        $response->assertSee('data-part-id="'.$genericPart->id.'"', false);
+        $response->assertSee('data-part-buyer-id=""', false);
+        $response->assertSee('data-part-id="'.$wayfairPart->id.'"', false);
+        $response->assertSee('filterFgPartsForSpk', false);
+    }
+
+    public function test_fg_input_rejects_part_from_different_buyer(): void
+    {
+        $amazon = Buyer::factory()->create(['name' => 'Amazon']);
+        $wayfair = Buyer::factory()->create(['name' => 'Wayfair']);
+        $wrongPart = Part::factory()->create(['buyer_id' => $wayfair->id, 'classification' => 'FG']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
+        $spk = Spk::factory()->create(['buyer_id' => $amazon->id, 'target_qty' => 100]);
+
+        $response = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $amazon->id,
+            'part_id' => $wrongPart->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $packing->id,
+            'good_qty' => 5,
+            'ng_qty' => 0,
+        ]);
+
+        $response->assertSessionHasErrors('part_id');
+        $this->assertDatabaseMissing('production_entries', [
+            'spk_id' => $spk->id,
+            'part_id' => $wrongPart->id,
+        ]);
+    }
+
     public function test_fg_report_uses_only_packing_good_quantities(): void
     {
         $buyer = Buyer::factory()->create(['name' => 'Amz']);

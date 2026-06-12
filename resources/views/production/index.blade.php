@@ -27,6 +27,26 @@
             grid-template-columns: 1fr;
         }
     }
+
+    .readonly-pill {
+        align-items: center;
+        background: #f8fafc;
+        border: 1.5px solid var(--line);
+        border-radius: var(--radius-sm);
+        color: var(--ink);
+        display: flex;
+        font-size: 14px;
+        font-weight: 700;
+        min-height: 42px;
+        padding: 10px 12px;
+    }
+
+    .field-hint {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.35;
+    }
 </style>
 
 <div class="production-input-grid">
@@ -48,7 +68,13 @@
                     <select name="spk_id" required>
                         <option value="">— Pilih SPK —</option>
                         @foreach($spks as $spk)
-                            <option value="{{ $spk->id }}">
+                            <option
+                                value="{{ $spk->id }}"
+                                data-buyer-id="{{ $spk->buyer_id }}"
+                                data-buyer-name="{{ $spk->buyer?->name }}"
+                                data-part-id="{{ $spk->part_id }}"
+                                data-size-id="{{ $spk->size_variant_id }}"
+                            >
                                 {{ $spk->spk_no }} · {{ $spk->buyer?->name }} · {{ $spk->item }} · {{ $spk->style }} · {{ number_format($spk->target_qty) }} pcs
                             </option>
                         @endforeach
@@ -58,21 +84,28 @@
                 @if($pageType === 'hasil')
                 <div class="field">
                     <label>Buyer</label>
-                    <select name="buyer_id">
-                        <option value="">Ikut buyer SPK</option>
-                        @foreach($buyers as $b)<option value="{{ $b->id }}">{{ $b->name }}</option>@endforeach
-                    </select>
+                    <input type="hidden" name="buyer_id" data-fg-buyer-input>
+                    <div class="readonly-pill" data-fg-buyer-label>Pilih SPK dulu</div>
                 </div>
                 <div class="field">
-                    <label>Part</label>
-                    <select name="part_id" required>
-                        <option value="">— Pilih Part —</option>
-                        @foreach($parts as $p)<option value="{{ $p->id }}">{{ $p->code }} – {{ $p->name }}</option>@endforeach
+                    <label>Produk FG</label>
+                    <select name="part_id" required data-fg-part-select disabled>
+                        <option value="">— Pilih SPK dulu —</option>
+                        @foreach($parts as $p)
+                            <option
+                                value="{{ $p->id }}"
+                                data-part-id="{{ $p->id }}"
+                                data-part-buyer-id="{{ $p->buyer_id }}"
+                            >
+                                {{ $p->code }} · {{ $p->name }}
+                            </option>
+                        @endforeach
                     </select>
+                    <div class="field-hint" data-fg-part-hint>Produk akan tampil sesuai buyer SPK.</div>
                 </div>
                 <div class="field">
                     <label>Size</label>
-                    <select name="size_variant_id" required>
+                    <select name="size_variant_id" required data-fg-size-select>
                         <option value="">— Pilih Size —</option>
                         @foreach($sizes as $s)<option value="{{ $s->id }}">{{ $s->code }}</option>@endforeach
                     </select>
@@ -167,4 +200,70 @@
     </div>
 
 </div>
+
+@if($pageType === 'hasil')
+<script>
+    function filterFgPartsForSpk() {
+        const spkSelect = document.querySelector('select[name="spk_id"]');
+        const buyerInput = document.querySelector('[data-fg-buyer-input]');
+        const buyerLabel = document.querySelector('[data-fg-buyer-label]');
+        const partSelect = document.querySelector('[data-fg-part-select]');
+        const partHint = document.querySelector('[data-fg-part-hint]');
+        const sizeSelect = document.querySelector('[data-fg-size-select]');
+
+        if (!spkSelect || !buyerInput || !buyerLabel || !partSelect) {
+            return;
+        }
+
+        const selected = spkSelect.selectedOptions[0];
+        const buyerId = selected?.dataset.buyerId || '';
+        const buyerName = selected?.dataset.buyerName || '';
+        const lockedPartId = selected?.dataset.partId || '';
+        const lockedSizeId = selected?.dataset.sizeId || '';
+
+        buyerInput.value = buyerId;
+        buyerLabel.textContent = buyerName || 'Pilih SPK dulu';
+
+        let visibleCount = 0;
+        partSelect.disabled = !buyerId;
+        partSelect.value = '';
+
+        Array.from(partSelect.options).forEach((option) => {
+            if (!option.value) {
+                option.textContent = buyerId ? '— Pilih Produk FG —' : '— Pilih SPK dulu —';
+                option.hidden = false;
+                return;
+            }
+
+            const optionBuyerId = option.dataset.partBuyerId || '';
+            const allowedByBuyer = optionBuyerId === '' || optionBuyerId === buyerId;
+            const allowedBySpkPart = !lockedPartId || option.value === lockedPartId;
+            const isVisible = Boolean(buyerId) && allowedByBuyer && allowedBySpkPart;
+
+            option.hidden = !isVisible;
+            option.disabled = !isVisible;
+
+            if (isVisible) {
+                visibleCount++;
+            }
+        });
+
+        if (lockedPartId) {
+            partSelect.value = lockedPartId;
+            partHint.textContent = 'Produk mengikuti part yang sudah ditentukan di SPK.';
+        } else if (buyerId) {
+            partHint.textContent = visibleCount + ' produk FG tersedia untuk buyer ini.';
+        } else {
+            partHint.textContent = 'Produk akan tampil sesuai buyer SPK.';
+        }
+
+        if (sizeSelect && lockedSizeId) {
+            sizeSelect.value = lockedSizeId;
+        }
+    }
+
+    document.querySelector('select[name="spk_id"]')?.addEventListener('change', filterFgPartsForSpk);
+    filterFgPartsForSpk();
+</script>
+@endif
 @endsection
