@@ -141,10 +141,11 @@ class ProductionAdminTest extends TestCase
         $page = $this->get('/masters/parts');
         $page->assertOk();
         $page->assertSee('Spec');
-        $page->assertSee('Item No.');
-        $page->assertSee('Goods Description');
+        $page->assertSee('Dimensi');
+        $page->assertSee('Packing / Weight');
         $page->assertSee('03.01.MAT-08T');
         $page->assertSee('MAT-HY-BN-08T');
+        $page->assertSee('8 inch Hybrid Spring Mattress Twin');
         $page->assertDontSee('Buyer Part Mapping');
     }
 
