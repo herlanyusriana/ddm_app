@@ -1,7 +1,7 @@
 @extends('production.layout', ['title' => 'Report Finish Good', 'subtitle' => 'Data packing good berdasarkan tanggal & shift'])
 
 @section('topbar-actions')
-    <a class="link-btn link-btn-secondary" href="/reports/fg?production_date={{ $date }}&shift={{ $shift }}&spk_id={{ $spkId }}&export=csv">⬇ Export CSV</a>
+    <a class="link-btn link-btn-secondary" href="/reports/fg?production_date={{ $date }}&shift={{ $shift }}&spk_id={{ $spkId }}&export=xlsx">⬇ Export XLSX</a>
     <a class="link-btn link-btn-primary" href="/reports/fg/print?production_date={{ $date }}&shift={{ $shift }}&spk_id={{ $spkId }}" target="_blank">🖨 Print / PDF</a>
 @endsection
 

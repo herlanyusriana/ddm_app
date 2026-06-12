@@ -128,7 +128,7 @@
             <table class="master-table" style="min-width:1280px">
                 <thead>
                     <tr>
-                        <th>Buyer</th><th>Kategori</th><th>Code</th><th>Name</th><th>Spec</th>
+                        <th>Buyer</th><th>Kategori</th><th>Code</th><th>Name</th><th>Spec</th><th>UOM</th>
                         <th class="td-num">W</th><th class="td-num">D</th><th class="td-num">H</th>
                         <th class="td-num">CBM/Unit</th><th class="td-num">Net</th><th class="td-num">Gross</th>
                         <th class="td-num">Pack/Box</th><th>Item No.</th><th>Goods Description</th><th class="master-actions-cell">Aksi</th>
@@ -146,6 +146,7 @@
                         <td><span class="master-code">{{ $part->code }}</span></td>
                         <td><span class="master-primary">{{ $part->name }}</span></td>
                         <td>{{ $part->spec ?? '-' }}</td>
+                        <td>{{ $part->uom ?? '-' }}</td>
                         <td class="td-num">{{ $part->width_cm ?? '-' }}</td>
                         <td class="td-num">{{ $part->depth_cm ?? '-' }}</td>
                         <td class="td-num">{{ $part->height_cm ?? '-' }}</td>
@@ -164,7 +165,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="15"><div class="master-empty"><strong>Belum ada part.</strong>Import dari Excel atau tambah manual dari tombol kanan atas.</div></td></tr>
+                    <tr><td colspan="16"><div class="master-empty"><strong>Belum ada part.</strong>Import dari Excel atau tambah manual dari tombol kanan atas.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -174,7 +175,7 @@
     <section class="master-summary">
         <div class="master-metric"><span>Total Size</span><strong>{{ $sizes->count() }}</strong></div>
         <div class="master-metric"><span>Menu</span><strong>Size</strong></div>
-        <div class="master-metric"><span>Import</span><strong>CSV</strong></div>
+        <div class="master-metric"><span>Import</span><strong>XLSX</strong></div>
         <div class="master-metric"><span>Export</span><strong>Excel</strong></div>
     </section>
 

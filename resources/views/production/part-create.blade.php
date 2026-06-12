@@ -35,6 +35,9 @@
             <label>Item No.<input name="item_no" placeholder="MAT-HY-BN-08T"></label>
         </div>
         <div class="form-row">
+            <label>UOM<input name="uom" placeholder="PCS"></label>
+        </div>
+        <div class="form-row">
             <label>W (CM)<input type="number" step="0.01" min="0" name="width_cm" placeholder="28"></label>
             <label>D (CM)<input type="number" step="0.01" min="0" name="depth_cm" placeholder="28"></label>
             <label>H (CM)<input type="number" step="0.01" min="0" name="height_cm" placeholder="106"></label>

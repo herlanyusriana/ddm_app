@@ -14,6 +14,7 @@ class Part extends Model
         'classification',
         'name',
         'spec',
+        'uom',
         'width_cm',
         'depth_cm',
         'height_cm',

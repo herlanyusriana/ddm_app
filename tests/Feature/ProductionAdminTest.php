@@ -129,6 +129,7 @@ class ProductionAdminTest extends TestCase
             'code' => '03.01.MAT-08T',
             'name' => '8inch Spring mattress Twin-ORSM01-08T',
             'spec' => '75*39*8inch',
+            'uom' => 'PCS',
             'width_cm' => 28,
             'depth_cm' => 28,
             'height_cm' => 106,
@@ -146,6 +147,7 @@ class ProductionAdminTest extends TestCase
             'code' => '03.01.MAT-08T',
             'name' => '8inch Spring mattress Twin-ORSM01-08T',
             'spec' => '75*39*8inch',
+            'uom' => 'PCS',
             'width_cm' => 28,
             'depth_cm' => 28,
             'height_cm' => 106,
@@ -277,7 +279,7 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('size_variants', ['id' => $size->id]);
     }
 
-    public function test_part_master_can_export_and_import_excel_csv(): void
+    public function test_part_master_can_export_and_import_excel_xlsx(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ', 'name' => 'Amazon']);
         Part::factory()->create([
@@ -286,23 +288,24 @@ class ProductionAdminTest extends TestCase
             'code' => '03.01.MAT-08T',
             'name' => '8inch Spring mattress Twin',
             'spec' => '75*39*8inch',
+            'uom' => 'PCS',
         ]);
 
         $export = $this->get('/masters/parts/export');
 
         $export->assertOk();
-        $export->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $export->assertSee('buyer_code,classification,code,name,spec', false);
-        $export->assertSee('03.01.MAT-08T', false);
+        $export->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->assertStringContainsString('part_master_', $export->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.xlsx', $export->headers->get('Content-Disposition'));
 
-        $csv = implode("\n", [
-            'buyer_code,classification,code,name,spec,width_cm,depth_cm,height_cm,cbm_per_unit,net_weight_pc,gross_weight_pc,package_box,item_no,goods_description',
-            'AMZ,FG,03.01.MAT-08T,Updated Mattress,75*39*8inch,28,28,106,0.08,12.26,13.76,1,MAT-HY-BN-08T,8 inch Hybrid Spring Mattress Twin',
-            ',RM,01.01,Steel Wire,,,,,,,,,,',
+        $xlsx = $this->xlsx([
+            ['buyer_code', 'classification', 'code', 'name', 'spec', 'uom', 'width_cm', 'depth_cm', 'height_cm', 'cbm_per_unit', 'net_weight_pc', 'gross_weight_pc', 'package_box', 'item_no', 'goods_description'],
+            ['AMZ', 'FG', '03.01.MAT-08T', 'Updated Mattress', '75*39*8inch', 'PCS', '28', '28', '106', '0.08', '12.26', '13.76', '1', 'MAT-HY-BN-08T', '8 inch Hybrid Spring Mattress Twin'],
+            ['', 'RM', '01.01', 'Steel Wire', '', 'KGM', '', '', '', '', '', '', '', '', ''],
         ]);
 
         $import = $this->post('/masters/parts/import', [
-            'file' => UploadedFile::fake()->createWithContent('parts.csv', $csv),
+            'file' => UploadedFile::fake()->createWithContent('parts.xlsx', $xlsx),
         ]);
 
         $import->assertSessionHasNoErrors();
@@ -311,35 +314,37 @@ class ProductionAdminTest extends TestCase
             'code' => '03.01.MAT-08T',
             'name' => 'Updated Mattress',
             'buyer_id' => $buyer->id,
+            'uom' => 'PCS',
             'item_no' => 'MAT-HY-BN-08T',
         ]);
         $this->assertDatabaseHas('parts', [
             'code' => '01.01',
             'classification' => 'RM',
             'name' => 'Steel Wire',
+            'uom' => 'KGM',
         ]);
         $this->assertDatabaseCount('parts', 2);
     }
 
-    public function test_size_master_can_export_and_import_excel_csv(): void
+    public function test_size_master_can_export_and_import_excel_xlsx(): void
     {
         SizeVariant::factory()->create(['code' => '12Q', 'name' => 'Queen']);
 
         $export = $this->get('/masters/sizes/export');
 
         $export->assertOk();
-        $export->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $export->assertSee('code,name', false);
-        $export->assertSee('12Q,Queen', false);
+        $export->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->assertStringContainsString('size_master_', $export->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.xlsx', $export->headers->get('Content-Disposition'));
 
-        $csv = implode("\n", [
-            'code,name',
-            '12Q,Queen Updated',
-            '8T,Twin',
+        $xlsx = $this->xlsx([
+            ['code', 'name'],
+            ['12Q', 'Queen Updated'],
+            ['8T', 'Twin'],
         ]);
 
         $import = $this->post('/masters/sizes/import', [
-            'file' => UploadedFile::fake()->createWithContent('sizes.csv', $csv),
+            'file' => UploadedFile::fake()->createWithContent('sizes.xlsx', $xlsx),
         ]);
 
         $import->assertSessionHasNoErrors();
@@ -665,6 +670,9 @@ class ProductionAdminTest extends TestCase
         $print->assertSee('SPK-UNIT-001');
         $print->assertSee('Prepared By');
         $print->assertSee('Approved By');
+        $print->assertSee('Manager');
+        $print->assertSee('Factory Manager');
+        $print->assertDontSee('Supervisor Produksi');
 
         $kanban = $this->get("/spk/{$spk->id}/kanban-card");
 
@@ -674,5 +682,62 @@ class ProductionAdminTest extends TestCase
         $kanban->assertSee('UNIT 003 / 003');
         $kanban->assertSee('LOT / SPK');
         $kanban->assertDontSee('JANGAN CAMPUR LOT', false);
+    }
+
+    private function xlsx(array $rows): string
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'test_xlsx_');
+        $zip = new \ZipArchive();
+        $zip->open($tmp, \ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets>
+</workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>');
+
+        $sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+        foreach ($rows as $rowIndex => $row) {
+            $excelRow = $rowIndex + 1;
+            $sheet .= '<row r="'.$excelRow.'">';
+            foreach ($row as $colIndex => $value) {
+                $cell = $this->xlsxColumnName($colIndex + 1).$excelRow;
+                $sheet .= '<c r="'.$cell.'" t="inlineStr"><is><t>'.htmlspecialchars((string) $value, ENT_XML1 | ENT_COMPAT, 'UTF-8').'</t></is></c>';
+            }
+            $sheet .= '</row>';
+        }
+        $sheet .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheet);
+        $zip->close();
+
+        $content = file_get_contents($tmp);
+        @unlink($tmp);
+
+        return $content;
+    }
+
+    private function xlsxColumnName(int $index): string
+    {
+        $name = '';
+        while ($index > 0) {
+            $index--;
+            $name = chr(65 + ($index % 26)).$name;
+            $index = intdiv($index, 26);
+        }
+
+        return $name;
     }
 }

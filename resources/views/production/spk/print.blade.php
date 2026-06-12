@@ -128,11 +128,11 @@
         </div>
         <div class="signature">
             <div class="signature-role">Checked By</div>
-            <div class="signature-line">Supervisor Produksi</div>
+            <div class="signature-line">Manager</div>
         </div>
         <div class="signature">
             <div class="signature-role">Approved By</div>
-            <div class="signature-line">Manager</div>
+            <div class="signature-line">Factory Manager</div>
         </div>
     </section>
 </main>

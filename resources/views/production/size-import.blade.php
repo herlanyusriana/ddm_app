@@ -4,18 +4,18 @@
 <section class="topbar">
     <div class="title">
         <h1>Import Size Master</h1>
-        <p>Upload file CSV dari Excel. Data dengan code yang sama akan diupdate.</p>
+        <p>Upload file XLSX dari Excel. Data dengan code yang sama akan diupdate.</p>
     </div>
     <a class="link-btn link-btn-primary" href="/masters/sizes">Kembali ke List</a>
 </section>
 
 <section class="grid two">
     <article class="panel">
-        <div class="panel-head"><h2>Upload File</h2><span class="pill">CSV Excel</span></div>
+        <div class="panel-head"><h2>Upload File</h2><span class="pill">XLSX Excel</span></div>
         <form class="compact-form" method="post" action="/masters/sizes/import" enctype="multipart/form-data">
             @csrf
-            <label>File CSV
-                <input type="file" name="file" accept=".csv,.txt" required>
+            <label>File XLSX
+                <input type="file" name="file" accept=".xlsx" required>
             </label>
             <button class="btn primary" type="submit">Import Size Master</button>
         </form>

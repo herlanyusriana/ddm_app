@@ -142,6 +142,7 @@ class ProductionAdminController extends Controller
             'code' => ['required', 'string', 'max:60', 'unique:parts,code'],
             'name' => ['required', 'string', 'max:160'],
             'spec' => ['nullable', 'string', 'max:120'],
+            'uom' => ['nullable', 'string', 'max:20'],
             'width_cm' => ['nullable', 'numeric', 'min:0'],
             'depth_cm' => ['nullable', 'numeric', 'min:0'],
             'height_cm' => ['nullable', 'numeric', 'min:0'],
@@ -171,6 +172,7 @@ class ProductionAdminController extends Controller
             'code',
             'name',
             'spec',
+            'uom',
             'width_cm',
             'depth_cm',
             'height_cm',
@@ -188,6 +190,7 @@ class ProductionAdminController extends Controller
             $part->code,
             $part->name,
             $part->spec,
+            $part->uom,
             $part->width_cm,
             $part->depth_cm,
             $part->height_cm,
@@ -199,16 +202,16 @@ class ProductionAdminController extends Controller
             $part->goods_description,
         ]);
 
-        return $this->csvResponse('part_master_'.now()->format('Ymd_His').'.csv', $headers, $rows);
+        return $this->xlsxResponse('part_master_'.now()->format('Ymd_His').'.xlsx', 'Part Master', $headers, $rows);
     }
 
     public function importParts(Request $request): RedirectResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:xlsx'],
         ]);
 
-        $rows = $this->readCsvUpload($request->file('file')->getRealPath());
+        $rows = $this->readXlsxUpload($request->file('file')->getRealPath());
         $saved = 0;
 
         foreach ($rows as $row) {
@@ -230,6 +233,7 @@ class ProductionAdminController extends Controller
                 'classification' => strtoupper((string) ($row['classification'] ?? 'FG')) ?: 'FG',
                 'name' => $name,
                 'spec' => $row['spec'] ?? null,
+                'uom' => $row['uom'] ?? null,
                 'width_cm' => $this->nullableNumber($row['width_cm'] ?? null),
                 'depth_cm' => $this->nullableNumber($row['depth_cm'] ?? null),
                 'height_cm' => $this->nullableNumber($row['height_cm'] ?? null),
@@ -271,16 +275,16 @@ class ProductionAdminController extends Controller
             $size->name,
         ]);
 
-        return $this->csvResponse('size_master_'.now()->format('Ymd_His').'.csv', ['code', 'name'], $rows);
+        return $this->xlsxResponse('size_master_'.now()->format('Ymd_His').'.xlsx', 'Size Master', ['code', 'name'], $rows);
     }
 
     public function importSizes(Request $request): RedirectResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:xlsx'],
         ]);
 
-        $rows = $this->readCsvUpload($request->file('file')->getRealPath());
+        $rows = $this->readXlsxUpload($request->file('file')->getRealPath());
         $saved = 0;
 
         foreach ($rows as $row) {
@@ -374,9 +378,8 @@ class ProductionAdminController extends Controller
 
     public function fgReportPage(Request $request)
     {
-        // Handle CSV export
-        if ($request->query('export') === 'csv') {
-            return $this->exportFgCsv($request);
+        if ($request->query('export') === 'xlsx') {
+            return $this->exportFgXlsx($request);
         }
 
         $date  = $request->query('production_date', now()->toDateString());
@@ -409,16 +412,15 @@ class ProductionAdminController extends Controller
         ]);
     }
 
-    private function exportFgCsv(Request $request)
+    private function exportFgXlsx(Request $request)
     {
         $date  = $request->query('production_date', now()->toDateString());
         $shift = $request->query('shift', '1');
         $report = $this->fgReport($date, $shift, $request->query('spk_id'));
 
-        $filename = 'fg_report_' . $date . '_shift' . $shift . '.csv';
+        $filename = 'fg_report_' . $date . '_shift' . $shift . '.xlsx';
 
         $rows = [];
-        $rows[] = ['Buyer', 'Size Code', 'Good Qty (pcs)'];
 
         foreach ($report['groups'] as $buyer => $items) {
             foreach ($items as $item) {
@@ -430,18 +432,7 @@ class ProductionAdminController extends Controller
 
         $rows[] = ['GRAND TOTAL', '', $report['total']];
 
-        $output = fopen('php://temp', 'r+');
-        foreach ($rows as $row) {
-            fputcsv($output, $row);
-        }
-        rewind($output);
-        $csv = stream_get_contents($output);
-        fclose($output);
-
-        return response($csv, 200, [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ]);
+        return $this->xlsxResponse($filename, 'Report FG', ['Buyer', 'Size Code', 'Good Qty (pcs)'], $rows);
     }
 
     public function apiMasters()
@@ -594,59 +585,158 @@ class ProductionAdminController extends Controller
         return trim(implode("\n", $lines));
     }
 
-    private function csvResponse(string $filename, array $headers, $rows): Response
-    {
-        $output = fopen('php://temp', 'r+');
-        fputcsv($output, $headers);
-
-        foreach ($rows as $row) {
-            fputcsv($output, $row);
-        }
-
-        rewind($output);
-        $csv = stream_get_contents($output);
-        fclose($output);
-
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
-        ]);
-    }
-
-    private function readCsvUpload(string $path): array
-    {
-        $handle = fopen($path, 'r');
-        if (! $handle) {
-            return [];
-        }
-
-        $header = fgetcsv($handle);
-        if (! $header) {
-            fclose($handle);
-            return [];
-        }
-
-        $header = array_map(fn ($value) => $this->normalizeCsvHeader($value), $header);
-        $rows = [];
-
-        while (($line = fgetcsv($handle)) !== false) {
-            if (count(array_filter($line, fn ($value) => trim((string) $value) !== '')) === 0) {
-                continue;
-            }
-
-            $rows[] = array_combine($header, array_slice(array_pad($line, count($header), null), 0, count($header)));
-        }
-
-        fclose($handle);
-
-        return $rows;
-    }
-
-    private function normalizeCsvHeader(?string $value): string
+    private function normalizeSheetHeader(?string $value): string
     {
         $value = preg_replace('/^\xEF\xBB\xBF/', '', (string) $value);
 
         return strtolower(trim(str_replace([' ', '-', '/', '.'], '_', $value)));
+    }
+
+    private function xlsxResponse(string $filename, string $sheetName, array $headers, $rows): Response
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx_');
+        $zip = new \ZipArchive();
+        $zip->open($tmp, \ZipArchive::OVERWRITE);
+
+        $data = [array_values($headers)];
+        foreach ($rows as $row) {
+            $data[] = array_values($row);
+        }
+
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="'.$this->xmlEscape($sheetName).'" sheetId="1" r:id="rId1"/></sheets>
+</workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>');
+
+        $sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+        foreach ($data as $rowIndex => $row) {
+            $excelRow = $rowIndex + 1;
+            $sheet .= '<row r="'.$excelRow.'">';
+            foreach ($row as $colIndex => $value) {
+                $cell = $this->xlsxColumnName($colIndex + 1).$excelRow;
+                $sheet .= '<c r="'.$cell.'" t="inlineStr"><is><t>'.$this->xmlEscape((string) $value).'</t></is></c>';
+            }
+            $sheet .= '</row>';
+        }
+        $sheet .= '</sheetData></worksheet>';
+
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheet);
+        $zip->close();
+
+        $content = file_get_contents($tmp);
+        @unlink($tmp);
+
+        return response($content, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    private function readXlsxUpload(string $path): array
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            return [];
+        }
+
+        $sharedStrings = [];
+        $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($sharedXml !== false) {
+            $shared = simplexml_load_string($sharedXml);
+            foreach ($shared->si ?? [] as $si) {
+                $sharedStrings[] = (string) ($si->t ?? $si->r->t ?? '');
+            }
+        }
+
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        if ($sheetXml === false) {
+            return [];
+        }
+
+        $sheet = simplexml_load_string($sheetXml);
+        $rawRows = [];
+
+        foreach ($sheet->sheetData->row ?? [] as $row) {
+            $values = [];
+            foreach ($row->c ?? [] as $cell) {
+                $ref = (string) ($cell['r'] ?? '');
+                $col = $this->xlsxColumnIndex(preg_replace('/\d+/', '', $ref));
+                $type = (string) ($cell['t'] ?? '');
+
+                if ($type === 'inlineStr') {
+                    $value = (string) ($cell->is->t ?? '');
+                } elseif ($type === 's') {
+                    $value = $sharedStrings[(int) ($cell->v ?? 0)] ?? '';
+                } else {
+                    $value = (string) ($cell->v ?? '');
+                }
+
+                $values[$col - 1] = $value;
+            }
+
+            if (count(array_filter($values, fn ($value) => trim((string) $value) !== '')) > 0) {
+                ksort($values);
+                $rawRows[] = $values;
+            }
+        }
+
+        if ($rawRows === []) {
+            return [];
+        }
+
+        $header = array_map(fn ($value) => $this->normalizeSheetHeader($value), array_values($rawRows[0]));
+        $rows = [];
+
+        foreach (array_slice($rawRows, 1) as $line) {
+            $line = array_slice(array_pad(array_values($line), count($header), null), 0, count($header));
+            $rows[] = array_combine($header, $line);
+        }
+
+        return $rows;
+    }
+
+    private function xlsxColumnName(int $index): string
+    {
+        $name = '';
+        while ($index > 0) {
+            $index--;
+            $name = chr(65 + ($index % 26)).$name;
+            $index = intdiv($index, 26);
+        }
+
+        return $name;
+    }
+
+    private function xlsxColumnIndex(string $name): int
+    {
+        $index = 0;
+        foreach (str_split($name) as $char) {
+            $index = $index * 26 + ord(strtoupper($char)) - 64;
+        }
+
+        return max(1, $index);
+    }
+
+    private function xmlEscape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
     }
 
     private function nullableNumber($value): ?float
