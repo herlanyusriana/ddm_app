@@ -53,6 +53,7 @@
 
         /* ── LAYOUT ── */
         .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        .mobile-bar, .sidebar-backdrop { display: none; }
 
         /* ── SIDEBAR ── */
         .sidebar {
@@ -347,16 +348,110 @@
         .flex { display: flex; align-items: center; }
 
         @media (max-width:1100px) {
-            .shell { grid-template-columns: 1fr; }
-            .sidebar { position: static; height: auto; }
+            .shell { grid-template-columns: 220px 1fr; }
             .form-row, .form-row-3 { grid-template-columns: 1fr 1fr; }
             .grid-4 { grid-template-columns: 1fr 1fr; }
             .processes { grid-template-columns: repeat(3,1fr); }
             .qty-grid { grid-template-columns: 1fr 1fr 1fr; }
         }
+
+        @media (max-width:760px) {
+            body.menu-open { overflow: hidden; }
+            .shell { display: block; min-height: 100vh; }
+            .mobile-bar {
+                align-items: center;
+                background: var(--sidebar-bg);
+                border-bottom: 1px solid #1e293b;
+                color: #fff;
+                display: flex;
+                gap: 10px;
+                height: 56px;
+                justify-content: space-between;
+                padding: 0 12px;
+                position: sticky;
+                top: 0;
+                z-index: 50;
+            }
+            .mobile-brand { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+            .mobile-brand strong { font-size: 14px; font-weight: 850; }
+            .mobile-brand span { color: var(--sidebar-muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+            .menu-button {
+                align-items: center;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 8px;
+                color: #fff;
+                cursor: pointer;
+                display: inline-flex;
+                font-size: 20px;
+                height: 38px;
+                justify-content: center;
+                width: 42px;
+            }
+            .sidebar {
+                box-shadow: 12px 0 30px rgba(15,23,42,.28);
+                height: 100vh;
+                left: 0;
+                max-width: 82vw;
+                position: fixed;
+                top: 0;
+                transform: translateX(-105%);
+                transition: transform .2s ease;
+                width: 280px;
+                z-index: 70;
+            }
+            body.menu-open .sidebar { transform: translateX(0); }
+            .sidebar-backdrop {
+                background: rgba(15,23,42,.5);
+                inset: 0;
+                position: fixed;
+                z-index: 60;
+            }
+            body.menu-open .sidebar-backdrop { display: block; }
+            .topbar {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 12px;
+                padding: 14px;
+                position: static;
+            }
+            .topbar-left h1 { font-size: 18px; }
+            .topbar-left p { font-size: 12px; }
+            .topbar-right { align-items: stretch; flex-wrap: wrap; width: 100%; }
+            .topbar-right .filter-bar {
+                display: grid !important;
+                grid-template-columns: 1fr 96px 72px;
+                width: 100%;
+            }
+            .page-content { padding: 12px; }
+            .panel { border-radius: 10px; }
+            .panel-header { padding: 13px 14px; }
+            .panel-body { padding: 14px; }
+            .grid, .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; gap: 12px; }
+            .form-row, .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
+            .processes { grid-template-columns: 1fr 1fr !important; }
+            .process-label { min-height: 48px; font-size: 12px; }
+            .qty-grid { gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .qty-box { padding: 10px 8px; }
+            .qty-box label { font-size: 9px; margin-bottom: 4px; }
+            .qty-box input { font-size: 24px; min-height: 54px; }
+            .field input, .field select, .field textarea { min-height: 40px; }
+            thead th { font-size: 10px; padding: 10px 12px; }
+            tbody td { font-size: 12px; padding: 11px 12px; }
+            .empty-state { padding: 32px 14px; }
+        }
     </style>
 </head>
 <body>
+<div class="mobile-bar">
+    <button class="menu-button" type="button" data-menu-toggle aria-label="Buka menu">☰</button>
+    <div class="mobile-brand">
+        <strong>DDM Production</strong>
+        <span>Admin Panel</span>
+    </div>
+    <span style="width:42px"></span>
+</div>
+<div class="sidebar-backdrop" data-menu-close></div>
 <div class="shell">
     <!-- SIDEBAR -->
     <aside class="sidebar">
@@ -448,6 +543,13 @@
     </main>
 </div>
 <script>
+    document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
+        button.addEventListener('click', () => document.body.classList.toggle('menu-open'));
+    });
+    document.querySelectorAll('[data-menu-close], .sidebar .nav-link').forEach((target) => {
+        target.addEventListener('click', () => document.body.classList.remove('menu-open'));
+    });
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/service-worker.js').catch(() => {});

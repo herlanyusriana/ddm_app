@@ -13,7 +13,23 @@
 @endsection
 
 @section('content')
-<div class="grid" style="grid-template-columns:380px 1fr;align-items:start;gap:20px">
+<style>
+    .production-input-grid {
+        align-items: start;
+        display: grid;
+        gap: 20px;
+        grid-template-columns: minmax(340px, 380px) 1fr;
+    }
+
+    @media (max-width: 760px) {
+        .production-input-grid {
+            gap: 12px;
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="production-input-grid">
 
     {{-- Input Form --}}
     <div class="panel">

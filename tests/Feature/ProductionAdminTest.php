@@ -40,6 +40,8 @@ class ProductionAdminTest extends TestCase
         $response->assertOk();
         $response->assertSee('rel="manifest"', false);
         $response->assertSee('/service-worker.js', false);
+        $response->assertSee('data-menu-toggle', false);
+        $response->assertSee('mobile-bar', false);
 
         $manifest = file_get_contents(public_path('manifest.webmanifest'));
         $worker = file_get_contents(public_path('service-worker.js'));
