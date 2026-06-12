@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="108" fill="#2563eb"/>
+  <rect x="72" y="132" width="368" height="252" rx="34" fill="#ffffff"/>
+  <path d="M112 320h288v34H112zM128 250h56v48h-56zM212 218h56v80h-56zM296 180h56v118h-56z" fill="#0f172a"/>
+  <path d="M104 178h96l32-44h72l32 44h72" fill="none" stroke="#0f172a" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="438" fill="#ffffff" font-family="Arial, sans-serif" font-size="66" font-weight="900" text-anchor="middle">DDM</text>
+</svg>

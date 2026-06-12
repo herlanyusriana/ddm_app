@@ -3,7 +3,15 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="DDM Admin">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>{{ $title ?? 'DDM Production' }}</title>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/pwa-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/pwa-icon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -439,5 +447,12 @@
         </div>
     </main>
 </div>
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+        });
+    }
+</script>
 </body>
 </html>

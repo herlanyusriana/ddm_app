@@ -1,0 +1,40 @@
+{
+    "name": "DDM Production Admin",
+    "short_name": "DDM Admin",
+    "description": "Production process admin for SPK, warehouse, WIP input, FG report, and master data.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#f0f2f5",
+    "theme_color": "#2563eb",
+    "categories": ["business", "productivity"],
+    "icons": [
+        {
+            "src": "/pwa-icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Input Proses",
+            "short_name": "Proses",
+            "url": "/input-proses",
+            "description": "Input good dan reject proses WIP"
+        },
+        {
+            "name": "Input Hasil FG",
+            "short_name": "FG",
+            "url": "/input-hasil",
+            "description": "Input hasil akhir packing"
+        },
+        {
+            "name": "SPK PPIC",
+            "short_name": "SPK",
+            "url": "/spk",
+            "description": "Kelola Surat Perintah Kerja"
+        }
+    ]
+}

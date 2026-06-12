@@ -33,6 +33,23 @@ class ProductionAdminTest extends TestCase
         $response->assertDontSee('Flow Information System');
     }
 
+    public function test_app_has_pwa_manifest_and_service_worker(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('rel="manifest"', false);
+        $response->assertSee('/service-worker.js', false);
+
+        $manifest = file_get_contents(public_path('manifest.webmanifest'));
+        $worker = file_get_contents(public_path('service-worker.js'));
+
+        $this->assertStringContainsString('DDM Production Admin', $manifest);
+        $this->assertStringContainsString('/pwa-icon.svg', $manifest);
+        $this->assertStringContainsString('ddm-production-v1', $worker);
+        $this->assertStringContainsString('/offline.html', $worker);
+    }
+
     public function test_master_data_sidebar_has_submenus(): void
     {
         $response = $this->get('/');
