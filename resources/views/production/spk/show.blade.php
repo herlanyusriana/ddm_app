@@ -2,7 +2,8 @@
 
 @section('topbar-actions')
     <a class="link-btn link-btn-secondary" href="/spk">← Kembali</a>
-    <a class="link-btn link-btn-primary" href="/spk/{{ $spk->id }}/kanban-card" target="_blank">🖨 Print Kanban Card</a>
+    <a class="link-btn link-btn-secondary" href="/spk/{{ $spk->id }}/print" target="_blank">Print SPK</a>
+    <a class="link-btn link-btn-primary" href="/spk/{{ $spk->id }}/kanban-card" target="_blank">Kanban Unit</a>
 @endsection
 
 @section('content')

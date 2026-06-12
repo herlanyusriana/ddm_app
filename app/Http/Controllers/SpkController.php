@@ -53,6 +53,12 @@ class SpkController extends Controller
         return view('production.spk.show', compact('spk'));
     }
 
+    public function print(Spk $spk)
+    {
+        $spk->load(['buyer', 'part', 'sizeVariant']);
+        return view('production.spk.print', compact('spk'));
+    }
+
     public function destroy(Spk $spk)
     {
         $spk->delete();
@@ -81,6 +87,12 @@ class SpkController extends Controller
     public function kanbanCard(Spk $spk)
     {
         $spk->load(['buyer', 'part', 'sizeVariant']);
-        return view('production.spk.kanban-card', compact('spk'));
+        $unitCards = collect(range(1, max(1, $spk->target_qty)))->map(fn ($number) => [
+            'number' => $number,
+            'code' => str_pad((string) $number, 3, '0', STR_PAD_LEFT),
+            'total' => str_pad((string) max(1, $spk->target_qty), 3, '0', STR_PAD_LEFT),
+        ]);
+
+        return view('production.spk.kanban-card', compact('spk', 'unitCards'));
     }
 }

@@ -514,4 +514,39 @@ class ProductionAdminTest extends TestCase
         $deleteResponse->assertRedirect('/spk');
         $this->assertDatabaseMissing('spks', ['id' => $spk->id]);
     }
+
+    public function test_spk_print_and_unit_kanban_cards_are_available(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        $spk = Spk::create([
+            'spk_no' => 'SPK-UNIT-001',
+            'spk_date' => '2026-06-12',
+            'dept' => 'Hotmelt, Binding, Packing',
+            'month' => 'Juni',
+            'buyer_id' => $buyer->id,
+            'po_no' => 'PO-MD-26-23',
+            'item' => 'Pocket Spring',
+            'style' => '14" Queen',
+            'target_qty' => 3,
+            'remarks' => 'W~25',
+            'shift' => '2',
+        ]);
+
+        $print = $this->get("/spk/{$spk->id}/print");
+
+        $print->assertOk();
+        $print->assertSee('SURAT PERINTAH KERJA');
+        $print->assertSee('SPK-UNIT-001');
+        $print->assertSee('Prepared By');
+        $print->assertSee('Approved By');
+
+        $kanban = $this->get("/spk/{$spk->id}/kanban-card");
+
+        $kanban->assertOk();
+        $kanban->assertSee('UNIT 001 / 003');
+        $kanban->assertSee('UNIT 002 / 003');
+        $kanban->assertSee('UNIT 003 / 003');
+        $kanban->assertSee('LOT / SPK');
+        $kanban->assertSee('JANGAN CAMPUR LOT', false);
+    }
 }

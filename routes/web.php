@@ -39,6 +39,7 @@ Route::get('/spk',                           [SpkController::class, 'index'])->n
 Route::get('/spk/create',                    [SpkController::class, 'create'])->name('spk.create');
 Route::post('/spk',                          [SpkController::class, 'store'])->name('spk.store');
 Route::get('/spk/{spk}',                     [SpkController::class, 'show'])->name('spk.show');
+Route::get('/spk/{spk}/print',               [SpkController::class, 'print'])->name('spk.print');
 Route::get('/spk/{spk}/kanban-card',         [SpkController::class, 'kanbanCard'])->name('spk.kanban');
 Route::delete('/spk/{spk}',                  [SpkController::class, 'destroy'])->name('spk.destroy');
 

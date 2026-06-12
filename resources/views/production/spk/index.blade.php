@@ -58,7 +58,8 @@
                         <td>
                             <div class="td-actions">
                                 <a href="/spk/{{ $spk->id }}" class="link-btn link-btn-secondary btn-sm">Detail</a>
-                                <a href="/spk/{{ $spk->id }}/kanban-card" target="_blank" class="link-btn link-btn-primary btn-sm">🖨 Kanban</a>
+                                <a href="/spk/{{ $spk->id }}/print" target="_blank" class="link-btn link-btn-secondary btn-sm">Print SPK</a>
+                                <a href="/spk/{{ $spk->id }}/kanban-card" target="_blank" class="link-btn link-btn-primary btn-sm">Kanban Unit</a>
                                 <form method="post" action="/spk/{{ $spk->id }}" onsubmit="return confirm('Hapus SPK {{ $spk->spk_no }}?')">
                                     @csrf
                                     @method('DELETE')
