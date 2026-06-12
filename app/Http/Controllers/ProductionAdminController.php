@@ -8,6 +8,7 @@ use App\Models\Part;
 use App\Models\Process;
 use App\Models\ProductionEntry;
 use App\Models\SizeVariant;
+use App\Models\Spk;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -50,8 +51,12 @@ class ProductionAdminController extends Controller
             'buyers' => Buyer::orderBy('name')->get(),
             'parts' => Part::orderBy('code')->get(),
             'sizes' => SizeVariant::orderBy('code')->get(),
+            'spks' => Spk::with('buyer')
+                ->whereIn('status', ['Pending', 'Material Prepared', 'In Production'])
+                ->latest()
+                ->get(),
             'inputProcesses' => $inputProcesses,
-            'entries' => ProductionEntry::with(['buyer', 'part', 'sizeVariant', 'process'])
+            'entries' => ProductionEntry::with(['spk', 'buyer', 'part', 'sizeVariant', 'process'])
                 ->whereDate('production_date', $date)
                 ->where('shift', $shift)
                 ->whereIn('process_id', $inputProcesses->pluck('id'))
@@ -316,6 +321,7 @@ class ProductionAdminController extends Controller
     {
         $process = Process::where('is_input_process', true)->find($request->input('process_id'));
         $requiresPart = $process ? $this->processRequiresPart($process) : false;
+        $spk = Spk::find($request->input('spk_id'));
 
         $request->merge([
             'repairable_qty' => $request->input('repairable_qty', $request->input('ng_qty', 0)),
@@ -323,11 +329,12 @@ class ProductionAdminController extends Controller
         ]);
 
         $validated = $request->validate([
+            'spk_id' => ['required', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
-            'buyer_id' => [$requiresPart ? 'required' : 'nullable', 'exists:buyers,id'],
-            'part_id' => [$requiresPart ? 'required' : 'nullable', 'exists:parts,id'],
-            'size_variant_id' => [$requiresPart ? 'required' : 'nullable', 'exists:size_variants,id'],
+            'buyer_id' => ['nullable', 'exists:buyers,id'],
+            'part_id' => [$requiresPart && ! $spk?->part_id ? 'required' : 'nullable', 'exists:parts,id'],
+            'size_variant_id' => [$requiresPart && ! $spk?->size_variant_id ? 'required' : 'nullable', 'exists:size_variants,id'],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -350,7 +357,14 @@ class ProductionAdminController extends Controller
             $validated['part_id'] = null;
         }
 
-        ProductionEntry::create($validated);
+        if ($spk) {
+            $validated['buyer_id'] = $spk->buyer_id;
+            $validated['part_id'] = $requiresPart ? ($validated['part_id'] ?? $spk->part_id) : null;
+            $validated['size_variant_id'] = $requiresPart ? ($validated['size_variant_id'] ?? $spk->size_variant_id) : null;
+        }
+
+        $entry = ProductionEntry::create($validated);
+        $this->syncSpkStatus($entry->spk);
 
         $redirectPath = $requiresPart ? '/input-hasil' : '/input-proses';
 
@@ -367,12 +381,15 @@ class ProductionAdminController extends Controller
 
         $date  = $request->query('production_date', now()->toDateString());
         $shift = $request->query('shift', '1');
+        $spkId = $request->query('spk_id');
 
         return view('production.report', [
             'date'         => $date,
             'shift'        => $shift,
+            'spkId'        => $spkId,
+            'spks'         => Spk::with('buyer')->latest()->get(),
             'shiftOptions' => $this->shiftOptions(),
-            'fgReport'     => $this->fgReport($date, $shift),
+            'fgReport'     => $this->fgReport($date, $shift, $spkId),
         ]);
     }
 
@@ -380,12 +397,15 @@ class ProductionAdminController extends Controller
     {
         $date  = $request->query('production_date', now()->toDateString());
         $shift = $request->query('shift', '1');
+        $spkId = $request->query('spk_id');
 
         return view('production.report-print', [
             'date'         => $date,
             'shift'        => $shift,
+            'spkId'        => $spkId,
+            'selectedSpk'  => $spkId ? Spk::with('buyer')->find($spkId) : null,
             'shiftOptions' => $this->shiftOptions(),
-            'fgReport'     => $this->fgReport($date, $shift),
+            'fgReport'     => $this->fgReport($date, $shift, $spkId),
         ]);
     }
 
@@ -393,7 +413,7 @@ class ProductionAdminController extends Controller
     {
         $date  = $request->query('production_date', now()->toDateString());
         $shift = $request->query('shift', '1');
-        $report = $this->fgReport($date, $shift);
+        $report = $this->fgReport($date, $shift, $request->query('spk_id'));
 
         $filename = 'fg_report_' . $date . '_shift' . $shift . '.csv';
 
@@ -439,6 +459,7 @@ class ProductionAdminController extends Controller
     {
         $process = Process::where('is_input_process', true)->find($request->input('process_id'));
         $requiresPart = $process ? $this->processRequiresPart($process) : false;
+        $spk = Spk::find($request->input('spk_id'));
 
         $request->merge([
             'repairable_qty' => $request->input('repairable_qty', $request->input('ng_qty', 0)),
@@ -446,11 +467,12 @@ class ProductionAdminController extends Controller
         ]);
 
         $validated = $request->validate([
+            'spk_id' => ['required', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
-            'buyer_id' => [$requiresPart ? 'required' : 'nullable', 'exists:buyers,id'],
-            'part_id' => [$requiresPart ? 'required' : 'nullable', 'exists:parts,id'],
-            'size_variant_id' => [$requiresPart ? 'required' : 'nullable', 'exists:size_variants,id'],
+            'buyer_id' => ['nullable', 'exists:buyers,id'],
+            'part_id' => [$requiresPart && ! $spk?->part_id ? 'required' : 'nullable', 'exists:parts,id'],
+            'size_variant_id' => [$requiresPart && ! $spk?->size_variant_id ? 'required' : 'nullable', 'exists:size_variants,id'],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -471,7 +493,16 @@ class ProductionAdminController extends Controller
             $validated['part_id'] = null;
         }
 
-        return response()->json(ProductionEntry::create($validated)->load(['buyer', 'part', 'sizeVariant', 'process']), 201);
+        if ($spk) {
+            $validated['buyer_id'] = $spk->buyer_id;
+            $validated['part_id'] = $requiresPart ? ($validated['part_id'] ?? $spk->part_id) : null;
+            $validated['size_variant_id'] = $requiresPart ? ($validated['size_variant_id'] ?? $spk->size_variant_id) : null;
+        }
+
+        $entry = ProductionEntry::create($validated);
+        $this->syncSpkStatus($entry->spk);
+
+        return response()->json($entry->load(['spk', 'buyer', 'part', 'sizeVariant', 'process']), 201);
     }
 
     public function apiFgReport(Request $request)
@@ -479,7 +510,7 @@ class ProductionAdminController extends Controller
         $date = $request->query('production_date', now()->toDateString());
         $shift = $request->query('shift', '1');
 
-        return response()->json($this->fgReport($date, $shift));
+        return response()->json($this->fgReport($date, $shift, $request->query('spk_id')));
     }
 
     private function processSummaries(string $date, string $shift)
@@ -503,7 +534,7 @@ class ProductionAdminController extends Controller
             });
     }
 
-    private function fgReport(string $date, string $shift): array
+    private function fgReport(string $date, string $shift, ?string $spkId = null): array
     {
         $packing = Process::where('is_fg_process', true)
             ->orWhere('name', 'Packing')
@@ -519,6 +550,7 @@ class ProductionAdminController extends Controller
             ->where('production_entries.process_id', $packing->id)
             ->whereDate('production_entries.production_date', $date)
             ->where('production_entries.shift', $shift)
+            ->when($spkId, fn ($query) => $query->where('production_entries.spk_id', $spkId))
             ->groupBy('buyers.name', 'size_variants.code')
             ->orderBy(DB::raw('MIN(production_entries.id)'))
             ->get([
@@ -634,6 +666,31 @@ class ProductionAdminController extends Controller
     private function processRequiresPart(Process $process): bool
     {
         return $process->is_fg_process || strcasecmp($process->name, 'Packing') === 0;
+    }
+
+    private function syncSpkStatus(?Spk $spk): void
+    {
+        if (! $spk) {
+            return;
+        }
+
+        $packing = Process::where('is_fg_process', true)
+            ->orWhere('name', 'Packing')
+            ->orderByDesc('is_fg_process')
+            ->first();
+
+        $packingGood = $packing
+            ? ProductionEntry::where('spk_id', $spk->id)->where('process_id', $packing->id)->sum('good_qty')
+            : 0;
+
+        if ($packingGood >= $spk->target_qty) {
+            $spk->update(['status' => 'Completed']);
+            return;
+        }
+
+        if (in_array($spk->status, ['Pending', 'Material Prepared'], true)) {
+            $spk->update(['status' => 'In Production']);
+        }
     }
 
     private function shiftOptions(): array

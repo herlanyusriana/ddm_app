@@ -10,6 +10,7 @@ class ProductionEntry extends Model
     use HasFactory;
 
     protected $fillable = [
+        'spk_id',
         'production_date',
         'shift',
         'buyer_id',
@@ -45,5 +46,10 @@ class ProductionEntry extends Model
     public function process()
     {
         return $this->belongsTo(Process::class);
+    }
+
+    public function spk()
+    {
+        return $this->belongsTo(Spk::class);
     }
 }

@@ -35,7 +35,7 @@
 </head>
 <body>
 <div class="toolbar">
-    <a href="/reports/fg?production_date={{ $date }}&shift={{ $shift }}">← Kembali</a>
+    <a href="/reports/fg?production_date={{ $date }}&shift={{ $shift }}&spk_id={{ $spkId }}">← Kembali</a>
     <button onclick="window.print()">🖨 Print / Save PDF</button>
 </div>
 
@@ -66,6 +66,10 @@
         <td>Packing / Finish Good</td>
         <th>Total Output</th>
         <td><strong>{{ number_format($fgReport['total']) }} pcs</strong></td>
+    </tr>
+    <tr>
+        <th>SPK</th>
+        <td colspan="3">{{ $selectedSpk ? $selectedSpk->spk_no.' - '.$selectedSpk->buyer?->name.' - '.$selectedSpk->item.' - '.$selectedSpk->style : 'Semua SPK' }}</td>
     </tr>
 </table>
 

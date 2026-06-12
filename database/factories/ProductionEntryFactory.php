@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Buyer;
 use App\Models\Part;
 use App\Models\Process;
+use App\Models\Spk;
 use App\Models\SizeVariant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -14,6 +15,7 @@ class ProductionEntryFactory extends Factory
     {
         return [
             'production_date' => now()->toDateString(),
+            'spk_id' => Spk::factory(),
             'shift' => '1',
             'buyer_id' => Buyer::factory(),
             'part_id' => Part::factory(),

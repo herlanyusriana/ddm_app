@@ -347,6 +347,7 @@ class ProductionAdminTest extends TestCase
         $buyer = Buyer::factory()->create();
         $part = Part::factory()->create();
         $size = SizeVariant::factory()->create();
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id]);
         $warehouse = Process::factory()->create([
             'name' => 'Warehouse RM',
             'is_input_process' => false,
@@ -354,6 +355,7 @@ class ProductionAdminTest extends TestCase
         ]);
 
         $response = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -373,10 +375,12 @@ class ProductionAdminTest extends TestCase
         $buyer = Buyer::factory()->create();
         $part = Part::factory()->create();
         $size = SizeVariant::factory()->create();
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 5]);
         $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
         $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
 
         $sewingResponse = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -388,6 +392,7 @@ class ProductionAdminTest extends TestCase
 
         $sewingResponse->assertSessionHasNoErrors();
         $this->assertDatabaseHas('production_entries', [
+            'spk_id' => $spk->id,
             'process_id' => $sewing->id,
             'part_id' => null,
             'good_qty' => 10,
@@ -395,6 +400,7 @@ class ProductionAdminTest extends TestCase
         ]);
 
         $packingResponse = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -407,6 +413,7 @@ class ProductionAdminTest extends TestCase
         $packingResponse->assertSessionHasErrors('part_id');
 
         $packingOkResponse = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -419,19 +426,24 @@ class ProductionAdminTest extends TestCase
 
         $packingOkResponse->assertSessionHasNoErrors();
         $this->assertDatabaseHas('production_entries', [
+            'spk_id' => $spk->id,
             'process_id' => $packing->id,
             'part_id' => $part->id,
         ]);
+        $this->assertDatabaseHas('spks', ['id' => $spk->id, 'status' => 'Completed']);
     }
 
     public function test_input_page_marks_part_selector_for_packing_only(): void
     {
         Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
         Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
+        $spk = Spk::factory()->create();
 
         $processPage = $this->get('/input-proses');
 
         $processPage->assertOk();
+        $processPage->assertSee('name="spk_id"', false);
+        $processPage->assertSee($spk->spk_no);
         $processPage->assertSee('Sewing');
         $processPage->assertDontSee('Packing');
         $processPage->assertDontSee('name="part_id"', false);
@@ -451,10 +463,13 @@ class ProductionAdminTest extends TestCase
         $part = Part::factory()->create();
         $size8t = SizeVariant::factory()->create(['code' => '8T']);
         $size12q = SizeVariant::factory()->create(['code' => '12Q']);
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'spk_no' => 'SPK-AMZ-001']);
+        $otherSpk = Spk::factory()->create(['buyer_id' => $buyer->id, 'spk_no' => 'SPK-AMZ-002']);
         $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'sort_order' => 50]);
         $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
 
         ProductionEntry::factory()->create([
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -465,6 +480,7 @@ class ProductionAdminTest extends TestCase
             'ng_qty' => 3,
         ]);
         ProductionEntry::factory()->create([
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -475,6 +491,7 @@ class ProductionAdminTest extends TestCase
             'ng_qty' => 0,
         ]);
         ProductionEntry::factory()->create([
+            'spk_id' => $spk->id,
             'production_date' => '2026-06-08',
             'shift' => '2',
             'buyer_id' => $buyer->id,
@@ -484,18 +501,35 @@ class ProductionAdminTest extends TestCase
             'good_qty' => 999,
             'ng_qty' => 0,
         ]);
+        ProductionEntry::factory()->create([
+            'spk_id' => $otherSpk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size12q->id,
+            'process_id' => $packing->id,
+            'good_qty' => 30,
+            'ng_qty' => 0,
+        ]);
 
         $response = $this->get('/reports/fg?production_date=2026-06-08&shift=2');
 
         $response->assertOk();
         $response->assertSee('Laporan Hasil Finish Good');
         $response->assertSee('GRAND TOTAL FINISH GOOD');
-        $response->assertSee('total = 217pcs');
+        $response->assertSee('total = 247pcs');
         $response->assertSee('8T = 55');
-        $response->assertSee('12Q = 162');
+        $response->assertSee('12Q = 192');
         $response->assertDontSeeText('999 pcs');
 
-        $print = $this->get('/reports/fg/print?production_date=2026-06-08&shift=2');
+        $filtered = $this->get("/reports/fg?production_date=2026-06-08&shift=2&spk_id={$spk->id}");
+
+        $filtered->assertOk();
+        $filtered->assertSee('total = 217pcs');
+        $filtered->assertDontSeeText('247 pcs');
+
+        $print = $this->get("/reports/fg/print?production_date=2026-06-08&shift=2&spk_id={$spk->id}");
 
         $print->assertOk();
         $print->assertSee('LAPORAN HASIL FINISH GOOD');

@@ -1,8 +1,8 @@
 @extends('production.layout', ['title' => 'Report Finish Good', 'subtitle' => 'Data packing good berdasarkan tanggal & shift'])
 
 @section('topbar-actions')
-    <a class="link-btn link-btn-secondary" href="/reports/fg?production_date={{ $date }}&shift={{ $shift }}&export=csv">⬇ Export CSV</a>
-    <a class="link-btn link-btn-primary" href="/reports/fg/print?production_date={{ $date }}&shift={{ $shift }}" target="_blank">🖨 Print / PDF</a>
+    <a class="link-btn link-btn-secondary" href="/reports/fg?production_date={{ $date }}&shift={{ $shift }}&spk_id={{ $spkId }}&export=csv">⬇ Export CSV</a>
+    <a class="link-btn link-btn-primary" href="/reports/fg/print?production_date={{ $date }}&shift={{ $shift }}&spk_id={{ $spkId }}" target="_blank">🖨 Print / PDF</a>
 @endsection
 
 @section('content')
@@ -18,6 +18,15 @@
         <select name="shift" style="min-height:38px">
             @foreach($shiftOptions as $key => $opt)
                 <option value="{{ $key }}" @selected($shift === $key)>{{ $opt['label'] }} ({{ $opt['time'] }})</option>
+            @endforeach
+        </select>
+    </div>
+    <div class="field" style="flex-direction:row;align-items:center;gap:8px;margin:0">
+        <label style="text-transform:none;font-size:13px;white-space:nowrap;color:var(--muted);font-weight:700">SPK</label>
+        <select name="spk_id" style="min-height:38px;min-width:260px">
+            <option value="">Semua SPK</option>
+            @foreach($spks as $spk)
+                <option value="{{ $spk->id }}" @selected((string) $spkId === (string) $spk->id)>{{ $spk->spk_no }} · {{ $spk->buyer?->name }}</option>
             @endforeach
         </select>
     </div>

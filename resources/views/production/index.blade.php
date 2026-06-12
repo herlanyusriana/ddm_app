@@ -27,11 +27,23 @@
                 <input type="hidden" name="production_date" value="{{ $date }}">
                 <input type="hidden" name="shift" value="{{ $shift }}">
 
+                <div class="field">
+                    <label>SPK / Lot Produksi</label>
+                    <select name="spk_id" required>
+                        <option value="">— Pilih SPK —</option>
+                        @foreach($spks as $spk)
+                            <option value="{{ $spk->id }}">
+                                {{ $spk->spk_no }} · {{ $spk->buyer?->name }} · {{ $spk->item }} · {{ $spk->style }} · {{ number_format($spk->target_qty) }} pcs
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 @if($pageType === 'hasil')
                 <div class="field">
                     <label>Buyer</label>
-                    <select name="buyer_id" required>
-                        <option value="">— Pilih Buyer —</option>
+                    <select name="buyer_id">
+                        <option value="">Ikut buyer SPK</option>
                         @foreach($buyers as $b)<option value="{{ $b->id }}">{{ $b->name }}</option>@endforeach
                     </select>
                 </div>
@@ -103,6 +115,7 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>SPK</th>
                             <th>Proses</th>
                             @if($pageType === 'hasil')<th>Buyer</th><th>Part</th><th>Size</th>@endif
                             <th class="td-num">Good</th>
@@ -114,6 +127,7 @@
                     <tbody>
                     @forelse($entries as $entry)
                         <tr>
+                            <td><a class="master-code" href="/spk/{{ $entry->spk_id }}">{{ $entry->spk?->spk_no ?? '—' }}</a></td>
                             <td><span class="badge badge-neutral">{{ $entry->process->name }}</span></td>
                             @if($pageType === 'hasil')
                             <td>{{ $entry->buyer?->name ?? '—' }}</td>
@@ -126,7 +140,7 @@
                             <td class="td-num text-muted text-sm">{{ $entry->ng_qty }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $pageType === 'hasil' ? 8 : 5 }}">
+                        <tr><td colspan="{{ $pageType === 'hasil' ? 9 : 6 }}">
                             <div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada input untuk filter ini.</p></div>
                         </td></tr>
                     @endforelse
