@@ -4,7 +4,7 @@ use App\Http\Controllers\ProductionAdminController;
 use App\Http\Controllers\SpkController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [ProductionAdminController::class, 'inputProses']);
+Route::get('/', [ProductionAdminController::class, 'dashboard']);
 
 // ── Input Produksi ──
 Route::get('/input-proses', [ProductionAdminController::class, 'inputProses'])->name('input.proses');

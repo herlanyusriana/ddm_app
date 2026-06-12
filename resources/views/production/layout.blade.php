@@ -465,7 +465,16 @@
 
         <nav class="sidebar-nav">
             <div class="nav-group">
-                <div class="nav-group-title">Operasional</div>
+                <div class="nav-group-title">Overview</div>
+                <a class="nav-link {{ request()->is('/') || request()->is('dashboard') ? 'active' : '' }}" href="/dashboard">
+                    <span class="icon">📊</span> Dashboard
+                </a>
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">Planning</div>
                 <a class="nav-link {{ request()->is('spk') || request()->is('spk/create') || request()->is('spk/*') ? 'active' : '' }}" href="/spk">
                     <span class="icon">📋</span> SPK (PPIC)
                 </a>
@@ -484,8 +493,14 @@
                 <a class="nav-link {{ request()->is('input-hasil') ? 'active' : '' }}" href="/input-hasil">
                     <span class="icon">✅</span> Input Hasil (FG)
                 </a>
-                <a class="nav-link {{ request()->is('dashboard') ? 'active' : '' }}" href="/dashboard">
-                    <span class="icon">📊</span> Dashboard
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <div class="nav-group">
+                <div class="nav-group-title">Report</div>
+                <a class="nav-link {{ request()->is('reports/fg*') ? 'active' : '' }}" href="/reports/fg">
+                    <span class="icon">📄</span> Report FG
                 </a>
             </div>
 
@@ -504,15 +519,6 @@
                 </a>
                 <a class="nav-link {{ request()->is('masters/processes*') ? 'active' : '' }}" href="/masters/processes">
                     <span class="icon">🔄</span> Process Master
-                </a>
-            </div>
-
-            <div class="nav-divider"></div>
-
-            <div class="nav-group">
-                <div class="nav-group-title">Report</div>
-                <a class="nav-link {{ request()->is('reports/fg*') ? 'active' : '' }}" href="/reports/fg">
-                    <span class="icon">📄</span> Report FG
                 </a>
             </div>
         </nav>

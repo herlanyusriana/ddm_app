@@ -16,14 +16,14 @@ class ProductionAdminTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_input_page_shows_entry_workspace_without_master_forms(): void
+    public function test_home_page_shows_dashboard_without_master_forms(): void
     {
         Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'sort_order' => 50]);
 
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('Input Produksi');
+        $response->assertSee('Dashboard Produksi');
         $response->assertSee('Master Data');
         $response->assertSee('Buyer Master');
         $response->assertSee('Part Master');
@@ -58,6 +58,12 @@ class ProductionAdminTest extends TestCase
 
         $response->assertOk();
         $response->assertSeeInOrder([
+            'Dashboard',
+            'SPK (PPIC)',
+            'Warehouse',
+            'Input Proses (WIP)',
+            'Input Hasil (FG)',
+            'Report FG',
             'Master Data',
             'Buyer Master',
             'Part Master',
@@ -356,14 +362,45 @@ class ProductionAdminTest extends TestCase
 
     public function test_dashboard_has_its_own_page(): void
     {
-        Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'sort_order' => 50]);
+        $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'sort_order' => 50]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'process_id' => $packing->id,
+            'good_qty' => 12,
+            'ng_qty' => 3,
+        ]);
 
         $response = $this->get('/dashboard?production_date=2026-06-08&shift=2');
 
         $response->assertOk();
         $response->assertSee('Dashboard Produksi');
+        $response->assertSee('Total Produksi');
+        $response->assertSee('Good');
+        $response->assertSee('NG');
+        $response->assertSee('process-dashboard-grid', false);
         $response->assertSee('Packing');
         $response->assertDontSee('Tambah Buyer');
+        $response->assertDontSee('<section class="topbar">', false);
+    }
+
+    public function test_warehouse_page_uses_preparation_workflow_layout(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        Spk::factory()->create(['buyer_id' => $buyer->id, 'spk_no' => 'SPK-PENDING', 'target_qty' => 100, 'status' => 'Pending']);
+        Spk::factory()->create(['buyer_id' => $buyer->id, 'spk_no' => 'SPK-PREPARED', 'target_qty' => 50, 'status' => 'Material Prepared']);
+
+        $response = $this->get('/warehouse');
+
+        $response->assertOk();
+        $response->assertSee('Warehouse');
+        $response->assertSee('Material Pending');
+        $response->assertSee('Material Siap');
+        $response->assertSee('warehouse-workflow-grid', false);
+        $response->assertSee('Siapkan Material');
+        $response->assertSee('SPK-PENDING');
+        $response->assertSee('SPK-PREPARED');
+        $response->assertDontSee('<section class="topbar">', false);
     }
 
     public function test_warehouse_process_cannot_be_used_for_good_ng_input(): void
