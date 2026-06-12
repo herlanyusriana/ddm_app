@@ -620,6 +620,6 @@ class ProductionAdminTest extends TestCase
         $kanban->assertSee('UNIT 002 / 003');
         $kanban->assertSee('UNIT 003 / 003');
         $kanban->assertSee('LOT / SPK');
-        $kanban->assertSee('JANGAN CAMPUR LOT', false);
+        $kanban->assertDontSee('JANGAN CAMPUR LOT', false);
     }
 }

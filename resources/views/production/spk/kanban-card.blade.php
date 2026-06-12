@@ -16,11 +16,10 @@
         .summary-label { color: #6b7280; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
         .summary-value { font-size: 13px; font-weight: 800; }
         .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); margin: 0 auto; max-width: 1180px; }
-        .card { background: #fff; border: 2px solid #111827; border-radius: 6px; min-height: 390px; padding: 14px; page-break-inside: avoid; position: relative; }
+        .card { background: #fff; border: 2px solid #111827; border-radius: 6px; min-height: 320px; padding: 14px; page-break-inside: avoid; position: relative; }
         .card-head { border-bottom: 2px solid #111827; display: grid; gap: 8px; grid-template-columns: 1fr auto; margin-bottom: 12px; padding-bottom: 10px; }
         .card-title { font-size: 16px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
         .unit-badge { align-items: center; background: #111827; border-radius: 999px; color: #fff; display: inline-flex; font-size: 11px; font-weight: 900; padding: 4px 10px; white-space: nowrap; }
-        .warning { background: #fef2f2; border: 1.5px solid #dc2626; border-radius: 5px; color: #b91c1c; font-size: 11px; font-weight: 900; letter-spacing: .05em; margin-bottom: 12px; padding: 8px 10px; text-align: center; }
         .field-grid { display: grid; gap: 8px; }
         .field { border: 1px solid #d1d5db; border-radius: 5px; min-height: 52px; padding: 7px 9px; }
         .field.small { min-height: 45px; }
@@ -33,7 +32,7 @@
             body { padding: 12px; }
             .summary-grid { grid-template-columns: 1fr 1fr; }
             .cards { grid-template-columns: 1fr; }
-            .card { min-height: 370px; padding: 12px; }
+            .card { min-height: 310px; padding: 12px; }
             .card-head { grid-template-columns: 1fr; }
             .unit-badge { justify-content: center; }
         }
@@ -42,7 +41,7 @@
             body { background: #fff; padding: 0; }
             .toolbar, .summary { display: none; }
             .cards { display: grid; gap: 6mm; grid-template-columns: 1fr 1fr; max-width: none; }
-            .card { box-shadow: none; min-height: 128mm; break-inside: avoid; page-break-inside: avoid; }
+            .card { box-shadow: none; min-height: 104mm; break-inside: avoid; page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -69,8 +68,6 @@
             <div class="card-title">Kanban Unit</div>
             <div class="unit-badge">UNIT {{ $card['code'] }} / {{ $card['total'] }}</div>
         </header>
-
-        <div class="warning">JANGAN CAMPUR LOT</div>
 
         <div class="field-grid">
             <div class="field">
@@ -111,9 +108,7 @@
             </div>
         </div>
 
-        <div class="footer">
-            Card {{ $card['code'] }} dari {{ $card['total'] }} | Dicetak {{ now()->format('d-m-Y H:i') }}
-        </div>
+        <div class="footer">Card {{ $card['code'] }} / {{ $card['total'] }}</div>
     </article>
 @endforeach
 </main>
