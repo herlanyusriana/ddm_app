@@ -125,13 +125,23 @@
     }
 
     @media (max-width: 760px) {
-        .warehouse-summary,
-        .warehouse-detail-grid {
-            grid-template-columns: 1fr;
-        }
+        .warehouse-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .warehouse-detail-grid { grid-template-columns: 1fr 1fr; }
 
         .warehouse-card {
             padding: 14px;
+        }
+
+        .warehouse-metric {
+            padding: 12px 10px;
+        }
+
+        .warehouse-metric span {
+            font-size: 9px;
+        }
+
+        .warehouse-metric strong {
+            font-size: 23px;
         }
     }
 </style>

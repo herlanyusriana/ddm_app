@@ -2,16 +2,16 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#2563eb">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="DDM Admin">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>{{ $title ?? 'DDM Production' }}</title>
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/pwa-icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/pwa-icon.svg">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -53,7 +53,7 @@
 
         /* ── LAYOUT ── */
         .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-        .mobile-bar, .sidebar-backdrop { display: none; }
+        .mobile-bar, .sidebar-backdrop, .app-bottom-nav, .install-prompt { display: none; }
 
         /* ── SIDEBAR ── */
         .sidebar {
@@ -325,6 +325,27 @@
         .filter-bar input:focus, .filter-bar select:focus { border-color: var(--primary); outline: none; }
         .filter-spacer { flex: 1; }
 
+        /* ── PWA MOBILE SHELL ── */
+        .install-prompt {
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            box-shadow: 0 16px 38px rgba(15,23,42,.28);
+            color: #fff;
+            gap: 12px;
+            left: 14px;
+            padding: 12px;
+            position: fixed;
+            right: 14px;
+            z-index: 90;
+        }
+
+        .install-prompt.show { display: flex; }
+        .install-prompt strong { display: block; font-size: 13px; font-weight: 850; }
+        .install-prompt span { color: #cbd5e1; display: block; font-size: 11px; font-weight: 600; }
+        .install-prompt-actions { display: flex; gap: 8px; margin-left: auto; }
+
         /* ── DETAIL ── */
         .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .detail-item { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -357,6 +378,14 @@
 
         @media (max-width:760px) {
             body.menu-open { overflow: hidden; }
+            body {
+                background: #f8fafc;
+                padding-bottom: calc(70px + env(safe-area-inset-bottom));
+                -webkit-tap-highlight-color: transparent;
+            }
+            @media (display-mode: standalone) {
+                body { background: #f1f5f9; }
+            }
             .shell { display: block; min-height: 100vh; }
             .mobile-bar {
                 align-items: center;
@@ -365,9 +394,9 @@
                 color: #fff;
                 display: flex;
                 gap: 10px;
-                height: 56px;
+                height: calc(56px + env(safe-area-inset-top));
                 justify-content: space-between;
-                padding: 0 12px;
+                padding: env(safe-area-inset-top) 12px 0;
                 position: sticky;
                 top: 0;
                 z-index: 50;
@@ -410,9 +439,11 @@
             body.menu-open .sidebar-backdrop { display: block; }
             .topbar {
                 align-items: stretch;
+                background: #fff;
+                border-bottom: 1px solid var(--line);
                 flex-direction: column;
-                gap: 12px;
-                padding: 14px;
+                gap: 10px;
+                padding: 12px;
                 position: static;
             }
             .topbar-left h1 { font-size: 18px; }
@@ -439,6 +470,45 @@
             thead th { font-size: 10px; padding: 10px 12px; }
             tbody td { font-size: 12px; padding: 11px 12px; }
             .empty-state { padding: 32px 14px; }
+            .install-prompt {
+                bottom: calc(78px + env(safe-area-inset-bottom));
+            }
+            .app-bottom-nav {
+                align-items: center;
+                background: rgba(255,255,255,.96);
+                border-top: 1px solid var(--line);
+                bottom: 0;
+                box-shadow: 0 -10px 30px rgba(15,23,42,.12);
+                display: grid;
+                gap: 2px;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                left: 0;
+                padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+                position: fixed;
+                right: 0;
+                z-index: 55;
+            }
+            .app-bottom-link {
+                align-items: center;
+                border-radius: 12px;
+                color: var(--muted);
+                display: flex;
+                flex-direction: column;
+                font-size: 10px;
+                font-weight: 800;
+                gap: 2px;
+                justify-content: center;
+                min-height: 52px;
+                min-width: 0;
+            }
+            .app-bottom-link .bottom-icon {
+                font-size: 18px;
+                line-height: 1;
+            }
+            .app-bottom-link.active {
+                background: var(--primary-soft);
+                color: var(--primary-dark);
+            }
         }
     </style>
 </head>
@@ -548,12 +618,79 @@
         </div>
     </main>
 </div>
+<nav class="app-bottom-nav" aria-label="Navigasi aplikasi">
+    <a class="app-bottom-link {{ request()->is('/') || request()->is('dashboard') ? 'active' : '' }}" href="/dashboard">
+        <span class="bottom-icon">📊</span>
+        <span>Dashboard</span>
+    </a>
+    <a class="app-bottom-link {{ request()->is('spk') || request()->is('spk/*') ? 'active' : '' }}" href="/spk">
+        <span class="bottom-icon">📋</span>
+        <span>SPK</span>
+    </a>
+    <a class="app-bottom-link {{ request()->is('warehouse*') ? 'active' : '' }}" href="/warehouse">
+        <span class="bottom-icon">🏪</span>
+        <span>WH</span>
+    </a>
+    <a class="app-bottom-link {{ request()->is('input-proses') || request()->is('input-hasil') ? 'active' : '' }}" href="/input-proses">
+        <span class="bottom-icon">✅</span>
+        <span>Input</span>
+    </a>
+    <a class="app-bottom-link {{ request()->is('reports/fg*') ? 'active' : '' }}" href="/reports/fg">
+        <span class="bottom-icon">📄</span>
+        <span>Report</span>
+    </a>
+</nav>
+<div class="install-prompt" data-install-prompt>
+    <div>
+        <strong>Install DDM Admin</strong>
+        <span>Buka seperti aplikasi native dari home screen.</span>
+    </div>
+    <div class="install-prompt-actions">
+        <button class="btn btn-secondary btn-sm" type="button" data-install-dismiss>Nanti</button>
+        <button class="btn btn-primary btn-sm" type="button" data-install-button>Install</button>
+    </div>
+</div>
 <script>
+    let deferredInstallPrompt = null;
+    const installPrompt = document.querySelector('[data-install-prompt]');
+    const installButton = document.querySelector('[data-install-button]');
+    const installDismiss = document.querySelector('[data-install-dismiss]');
+
     document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
         button.addEventListener('click', () => document.body.classList.toggle('menu-open'));
     });
     document.querySelectorAll('[data-menu-close], .sidebar .nav-link').forEach((target) => {
         target.addEventListener('click', () => document.body.classList.remove('menu-open'));
+    });
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+
+        if (!localStorage.getItem('ddm-install-dismissed')) {
+            installPrompt?.classList.add('show');
+        }
+    });
+
+    installButton?.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) {
+            return;
+        }
+
+        installPrompt?.classList.remove('show');
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+    });
+
+    installDismiss?.addEventListener('click', () => {
+        localStorage.setItem('ddm-install-dismissed', '1');
+        installPrompt?.classList.remove('show');
+    });
+
+    window.addEventListener('appinstalled', () => {
+        installPrompt?.classList.remove('show');
+        deferredInstallPrompt = null;
     });
 
     if ('serviceWorker' in navigator) {

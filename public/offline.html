@@ -2,19 +2,82 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
     <title>DDM Production Offline</title>
+    <link rel="icon" href="/icons/icon-192.png">
     <style>
-        body { align-items: center; background: #f0f2f5; color: #0f172a; display: flex; font-family: Arial, sans-serif; justify-content: center; margin: 0; min-height: 100vh; padding: 24px; }
-        .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 8px 28px rgba(15,23,42,.12); max-width: 460px; padding: 28px; text-align: center; }
-        h1 { font-size: 22px; margin: 0 0 8px; }
-        p { color: #64748b; line-height: 1.55; margin: 0; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            align-items: stretch;
+            background: #f1f5f9;
+            color: #0f172a;
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+        }
+        header {
+            align-items: center;
+            background: #0f172a;
+            color: #fff;
+            display: flex;
+            gap: 10px;
+            min-height: 58px;
+            padding: 12px 16px;
+        }
+        img { border-radius: 12px; height: 34px; width: 34px; }
+        strong { display: block; font-size: 14px; }
+        span { color: #cbd5e1; display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        main {
+            align-items: center;
+            display: flex;
+            flex: 1;
+            justify-content: center;
+            padding: 22px;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 16px 40px rgba(15,23,42,.12);
+            max-width: 420px;
+            padding: 24px;
+            text-align: center;
+            width: 100%;
+        }
+        h1 { font-size: 22px; line-height: 1.2; margin: 0 0 10px; }
+        p { color: #64748b; line-height: 1.55; margin: 0 0 18px; }
+        button {
+            background: #2563eb;
+            border: 0;
+            border-radius: 12px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            min-height: 44px;
+            padding: 0 18px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
-<main class="card">
-    <h1>DDM Production sedang offline</h1>
-    <p>Koneksi tidak tersedia. Buka ulang saat jaringan sudah aktif agar input produksi, SPK, dan report tersimpan ke server.</p>
+<header>
+    <img src="/icons/icon-192.png" alt="">
+    <div>
+        <strong>DDM Production</strong>
+        <span>Offline Mode</span>
+    </div>
+</header>
+<main>
+    <section class="card">
+        <h1>Koneksi sedang offline</h1>
+        <p>Halaman yang sudah pernah dibuka masih bisa tampil. Untuk simpan input produksi, sambungkan internet lalu coba lagi.</p>
+        <button type="button" onclick="window.location.reload()">Coba Lagi</button>
+    </section>
 </main>
 </body>
 </html>

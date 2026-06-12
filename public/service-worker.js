@@ -1,10 +1,17 @@
-const CACHE_NAME = 'ddm-production-v1';
+const CACHE_NAME = 'ddm-production-v2';
 const APP_SHELL = [
     '/',
-    '/input-proses',
+    '/dashboard',
     '/spk',
+    '/warehouse',
+    '/input-proses',
+    '/input-hasil',
+    '/reports/fg',
     '/manifest.webmanifest',
     '/pwa-icon.svg',
+    '/icons/icon-192.png',
+    '/icons/icon-512.png',
+    '/icons/maskable-512.png',
     '/offline.html'
 ];
 
@@ -31,16 +38,36 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    if (request.mode === 'navigate') {
+        event.respondWith(
+            fetch(request)
+                .then((response) => {
+                    if (response.ok) {
+                        const copy = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+                    }
+
+                    return response;
+                })
+                .catch(() => caches.match(request).then((cached) => cached || caches.match('/offline.html')))
+        );
+        return;
+    }
+
     event.respondWith(
-        fetch(request)
-            .then((response) => {
+        caches.match(request).then((cached) => {
+            if (cached) {
+                return cached;
+            }
+
+            return fetch(request).then((response) => {
                 if (response.ok && request.url.startsWith(self.location.origin)) {
                     const copy = response.clone();
                     caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
                 }
 
                 return response;
-            })
-            .catch(() => caches.match(request).then((cached) => cached || caches.match('/offline.html')))
+            });
+        })
     );
 });

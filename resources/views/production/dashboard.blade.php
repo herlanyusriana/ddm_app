@@ -150,13 +150,19 @@
     }
 
     @media (max-width: 760px) {
-        .dashboard-stats,
-        .process-dashboard-grid {
-            grid-template-columns: 1fr;
-        }
+        .dashboard-stats { grid-template-columns: 1fr 1fr; }
+        .process-dashboard-grid { grid-template-columns: 1fr; }
 
         .dashboard-stat strong {
-            font-size: 26px;
+            font-size: 24px;
+        }
+
+        .dashboard-stat {
+            padding: 14px;
+        }
+
+        .dashboard-stat small {
+            font-size: 11px;
         }
     }
 </style>

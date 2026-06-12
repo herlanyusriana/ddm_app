@@ -41,15 +41,28 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('rel="manifest"', false);
         $response->assertSee('/service-worker.js', false);
         $response->assertSee('data-menu-toggle', false);
+        $response->assertSee('app-bottom-nav', false);
+        $response->assertSee('data-install-prompt', false);
+        $response->assertSee('data-install-button', false);
         $response->assertSee('mobile-bar', false);
 
         $manifest = file_get_contents(public_path('manifest.webmanifest'));
         $worker = file_get_contents(public_path('service-worker.js'));
 
         $this->assertStringContainsString('DDM Production Admin', $manifest);
+        $this->assertStringContainsString('"id": "/?source=pwa"', $manifest);
+        $this->assertStringContainsString('"display_override"', $manifest);
         $this->assertStringContainsString('/pwa-icon.svg', $manifest);
-        $this->assertStringContainsString('ddm-production-v1', $worker);
+        $this->assertStringContainsString('/icons/icon-192.png', $manifest);
+        $this->assertStringContainsString('/icons/maskable-512.png', $manifest);
+        $this->assertStringContainsString('ddm-production-v2', $worker);
+        $this->assertStringContainsString('/dashboard', $worker);
+        $this->assertStringContainsString('/warehouse', $worker);
+        $this->assertStringContainsString('/input-hasil', $worker);
         $this->assertStringContainsString('/offline.html', $worker);
+        $this->assertFileExists(public_path('icons/icon-192.png'));
+        $this->assertFileExists(public_path('icons/icon-512.png'));
+        $this->assertFileExists(public_path('icons/maskable-512.png'));
     }
 
     public function test_master_data_sidebar_has_submenus(): void
