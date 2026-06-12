@@ -74,11 +74,17 @@
                                 data-buyer-name="{{ $spk->buyer?->name }}"
                                 data-part-id="{{ $spk->part_id }}"
                                 data-size-id="{{ $spk->size_variant_id }}"
+                                data-target-qty="{{ $spk->target_qty }}"
                             >
                                 {{ $spk->spk_no }} · {{ $spk->buyer?->name }} · {{ $spk->item }} · {{ $spk->style }} · {{ number_format($spk->target_qty) }} pcs
                             </option>
                         @endforeach
                     </select>
+                </div>
+                <div class="field">
+                    <label>Target Lot & Sisa Kapasitas</label>
+                    <div class="readonly-pill" data-spk-target-info>— Pilih SPK dan proses —</div>
+                    <div class="field-hint" data-spk-warning style="display:none;"></div>
                 </div>
 
                 @if($pageType === 'hasil')
@@ -118,7 +124,7 @@
                     <div class="processes" style="grid-template-columns:repeat(2,1fr)">
                         @foreach($inputProcesses as $process)
                             <label class="process-label">
-                                <input type="radio" name="process_id" value="{{ $process->id }}" required>
+                                <input type="radio" name="process_id" value="{{ $process->id }}" required data-process-name="{{ $process->name }}">
                                 {{ $process->name }}
                             </label>
                         @endforeach
@@ -266,4 +272,59 @@
     filterFgPartsForSpk();
 </script>
 @endif
+<script>
+    const spkProcessTotals = @json($spkProcessTotals);
+
+    function updateSpkTargetInfo() {
+        const spkSelect = document.querySelector('select[name="spk_id"]');
+        const processInput = document.querySelector('input[name="process_id"]:checked');
+        const targetInfo = document.querySelector('[data-spk-target-info]');
+        const warning = document.querySelector('[data-spk-warning]');
+        const goodInput = Number(document.querySelector('input[name="good_qty"]').value || 0);
+        const repairableInput = Number(document.querySelector('input[name="repairable_qty"]').value || 0);
+        const scrapInput = Number(document.querySelector('input[name="scrap_qty"]').value || 0);
+
+        if (!spkSelect || !targetInfo || !warning) {
+            return;
+        }
+
+        const selected = spkSelect.selectedOptions[0];
+        const targetQty = selected ? Number(selected.dataset.targetQty || 0) : 0;
+        const spkId = selected ? selected.value : null;
+        const processId = processInput ? processInput.value : null;
+        const entryQty = goodInput + repairableInput + scrapInput;
+
+        let currentQty = 0;
+        if (spkId && processId && spkProcessTotals[spkId] && spkProcessTotals[spkId][processId]) {
+            currentQty = Number(spkProcessTotals[spkId][processId]);
+        }
+
+        const remainingQty = Math.max(0, targetQty - currentQty);
+
+        if (targetQty > 0) {
+            targetInfo.textContent = `Target lot: ${targetQty} pcs · Terpakai untuk proses saat ini: ${currentQty} pcs · Sisa: ${remainingQty} pcs`;
+        } else {
+            targetInfo.textContent = 'Pilih SPK terlebih dulu';
+        }
+
+        if (entryQty > remainingQty) {
+            warning.style.display = 'block';
+            warning.textContent = `Warning: total input saat ini (${entryQty} pcs) melebihi sisa kapasitas proses (${remainingQty} pcs).`;
+            warning.style.color = 'var(--danger)';
+        } else if (targetQty > 0) {
+            warning.style.display = 'block';
+            warning.textContent = `Total input saat ini: ${entryQty} pcs. Sisa kapasitas: ${remainingQty} pcs.`;
+            warning.style.color = 'var(--muted)';
+        } else {
+            warning.style.display = 'none';
+        }
+    }
+
+    document.querySelector('select[name="spk_id"]')?.addEventListener('change', updateSpkTargetInfo);
+    document.querySelectorAll('input[name="process_id"]').forEach((radio) => radio.addEventListener('change', updateSpkTargetInfo));
+    document.querySelector('input[name="good_qty"]')?.addEventListener('input', updateSpkTargetInfo);
+    document.querySelector('input[name="repairable_qty"]')?.addEventListener('input', updateSpkTargetInfo);
+    document.querySelector('input[name="scrap_qty"]')?.addEventListener('input', updateSpkTargetInfo);
+    updateSpkTargetInfo();
+</script>
 @endsection

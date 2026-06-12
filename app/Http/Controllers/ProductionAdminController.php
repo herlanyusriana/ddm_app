@@ -42,6 +42,21 @@ class ProductionAdminController extends Controller
             $title = 'Input Hasil (FG/Packing)';
         }
 
+        $spks = Spk::with(['buyer', 'part', 'sizeVariant'])
+            ->whereIn('status', ['Pending', 'Material Prepared', 'In Production'])
+            ->latest()
+            ->get();
+        $spkProcessTotals = ProductionEntry::whereIn('spk_id', $spks->pluck('id'))
+            ->whereIn('process_id', $inputProcesses->pluck('id'))
+            ->groupBy('spk_id', 'process_id')
+            ->selectRaw('spk_id, process_id, COALESCE(SUM(good_qty + ng_qty), 0) as total_qty')
+            ->get()
+            ->groupBy('spk_id')
+            ->mapWithKeys(fn ($rows, $spkId) => [
+                $spkId => $rows->mapWithKeys(fn ($row) => [(string) $row->process_id => (int) $row->total_qty])->toArray(),
+            ])
+            ->toArray();
+
         return view('production.index', [
             'pageType' => $type,
             'pageTitle' => $title,
@@ -54,11 +69,9 @@ class ProductionAdminController extends Controller
                 ->orderBy('code')
                 ->get(),
             'sizes' => SizeVariant::orderBy('code')->get(),
-            'spks' => Spk::with(['buyer', 'part', 'sizeVariant'])
-                ->whereIn('status', ['Pending', 'Material Prepared', 'In Production'])
-                ->latest()
-                ->get(),
+            'spks' => $spks,
             'inputProcesses' => $inputProcesses,
+            'spkProcessTotals' => $spkProcessTotals,
             'entries' => ProductionEntry::with(['spk', 'buyer', 'part', 'sizeVariant', 'process'])
                 ->whereDate('production_date', $date)
                 ->where('shift', $shift)
@@ -360,6 +373,15 @@ class ProductionAdminController extends Controller
                 ->withInput();
         }
 
+        if ($spk && $process) {
+            $overflowMessage = $this->spkProcessCapacityError($spk, $process, $validated['good_qty'] + $validated['ng_qty']);
+            if ($overflowMessage) {
+                return back()
+                    ->withErrors(['good_qty' => $overflowMessage])
+                    ->withInput();
+            }
+        }
+
         if (! $requiresPart) {
             $validated['part_id'] = null;
         }
@@ -493,6 +515,13 @@ class ProductionAdminController extends Controller
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
             return response()->json(['message' => 'Total produksi (Good + NG) harus lebih dari 0.'], 422);
+        }
+
+        if ($spk && $process) {
+            $overflowMessage = $this->spkProcessCapacityError($spk, $process, $validated['good_qty'] + $validated['ng_qty']);
+            if ($overflowMessage) {
+                return response()->json(['message' => $overflowMessage, 'errors' => ['good_qty' => [$overflowMessage]]], 422);
+            }
         }
 
         if (! $requiresPart) {
@@ -779,6 +808,20 @@ class ProductionAdminController extends Controller
     private function processRequiresPart(Process $process): bool
     {
         return $process->is_fg_process || strcasecmp($process->name, 'Packing') === 0;
+    }
+
+    private function spkProcessCapacityError(Spk $spk, Process $process, int $entryQty): ?string
+    {
+        $existingQty = (int) ProductionEntry::where('spk_id', $spk->id)
+            ->where('process_id', $process->id)
+            ->sum(DB::raw('good_qty + ng_qty'));
+
+        $remaining = max(0, $spk->target_qty - $existingQty);
+        if ($entryQty > $remaining) {
+            return "Total produksi untuk SPK {$spk->spk_no} proses {$process->name} tidak boleh melebihi target lot ({$spk->target_qty} pcs). Sisa kapasitas: {$remaining} pcs.";
+        }
+
+        return null;
     }
 
     private function partMatchesBuyer(int $partId, int $buyerId): bool

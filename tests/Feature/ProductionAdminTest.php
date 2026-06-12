@@ -449,7 +449,7 @@ class ProductionAdminTest extends TestCase
         $buyer = Buyer::factory()->create();
         $part = Part::factory()->create();
         $size = SizeVariant::factory()->create();
-        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 5]);
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 20]);
         $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
         $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
 
@@ -504,7 +504,98 @@ class ProductionAdminTest extends TestCase
             'process_id' => $packing->id,
             'part_id' => $part->id,
         ]);
-        $this->assertDatabaseHas('spks', ['id' => $spk->id, 'status' => 'Completed']);
+        $this->assertDatabaseHas('spks', ['id' => $spk->id, 'status' => 'In Production']);
+    }
+
+    public function test_production_input_cannot_exceed_spk_lot_total_per_process(): void
+    {
+        $buyer = Buyer::factory()->create();
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 100]);
+        $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+
+        ProductionEntry::factory()->create([
+            'spk_id' => $spk->id,
+            'buyer_id' => $buyer->id,
+            'part_id' => null,
+            'size_variant_id' => null,
+            'process_id' => $process->id,
+            'good_qty' => 60,
+            'repairable_qty' => 10,
+            'scrap_qty' => 0,
+            'ng_qty' => 10,
+        ]);
+
+        $response = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'process_id' => $process->id,
+            'good_qty' => 31,
+            'repairable_qty' => 0,
+            'scrap_qty' => 0,
+        ]);
+
+        $response->assertSessionHasErrors('good_qty');
+        $this->assertDatabaseMissing('production_entries', [
+            'spk_id' => $spk->id,
+            'process_id' => $process->id,
+            'good_qty' => 31,
+        ]);
+
+        $ok = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'process_id' => $process->id,
+            'good_qty' => 20,
+            'repairable_qty' => 5,
+            'scrap_qty' => 5,
+        ]);
+
+        $ok->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('production_entries', [
+            'spk_id' => $spk->id,
+            'process_id' => $process->id,
+            'good_qty' => 20,
+            'repairable_qty' => 5,
+            'scrap_qty' => 5,
+            'ng_qty' => 10,
+        ]);
+    }
+
+    public function test_api_production_input_cannot_exceed_spk_lot_total_per_process(): void
+    {
+        $buyer = Buyer::factory()->create();
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 50]);
+        $process = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true, 'sort_order' => 40]);
+
+        ProductionEntry::factory()->create([
+            'spk_id' => $spk->id,
+            'buyer_id' => $buyer->id,
+            'part_id' => null,
+            'size_variant_id' => null,
+            'process_id' => $process->id,
+            'good_qty' => 45,
+            'repairable_qty' => 0,
+            'scrap_qty' => 0,
+            'ng_qty' => 0,
+        ]);
+
+        $response = $this->postJson('/api/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'process_id' => $process->id,
+            'good_qty' => 6,
+            'repairable_qty' => 0,
+            'scrap_qty' => 0,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('good_qty');
     }
 
     public function test_input_page_marks_part_selector_for_packing_only(): void
@@ -578,6 +669,99 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('production_entries', [
             'spk_id' => $spk->id,
             'part_id' => $wrongPart->id,
+        ]);
+    }
+
+    public function test_production_entry_rejects_spk_process_capacity_overflow(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        $part = Part::factory()->create(['buyer_id' => $buyer->id, 'classification' => 'FG']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 100]);
+
+        $firstResponse = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $packing->id,
+            'good_qty' => 60,
+            'repairable_qty' => 10,
+            'scrap_qty' => 0,
+        ]);
+
+        $firstResponse->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('production_entries', [
+            'spk_id' => $spk->id,
+            'process_id' => $packing->id,
+            'good_qty' => 60,
+            'repairable_qty' => 10,
+        ]);
+
+        $secondResponse = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $packing->id,
+            'good_qty' => 31,
+            'repairable_qty' => 0,
+            'scrap_qty' => 0,
+        ]);
+
+        $secondResponse->assertSessionHasErrors('good_qty');
+        $this->assertDatabaseMissing('production_entries', [
+            'spk_id' => $spk->id,
+            'process_id' => $packing->id,
+            'good_qty' => 31,
+        ]);
+    }
+
+    public function test_api_production_entry_rejects_spk_process_capacity_overflow(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        $part = Part::factory()->create(['buyer_id' => $buyer->id, 'classification' => 'FG']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $packing = Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'target_qty' => 100]);
+
+        $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $packing->id,
+            'good_qty' => 60,
+            'repairable_qty' => 10,
+            'scrap_qty' => 0,
+        ]);
+
+        $response = $this->postJson('/api/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-08',
+            'shift' => '2',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $packing->id,
+            'good_qty' => 31,
+            'repairable_qty' => 0,
+            'scrap_qty' => 0,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('good_qty');
+        $this->assertDatabaseMissing('production_entries', [
+            'spk_id' => $spk->id,
+            'process_id' => $packing->id,
+            'good_qty' => 31,
         ]);
     }
 
