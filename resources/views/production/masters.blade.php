@@ -41,7 +41,7 @@
     .master-search input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.1); outline: none; }
     .master-search::before { color: var(--muted); content: "⌕"; font-size: 18px; left: 12px; position: absolute; top: 5px; }
     .master-count { color: var(--muted); font-size: 12px; font-weight: 800; white-space: nowrap; }
-    .master-table-wrap { max-height: calc(100vh - 300px); min-height: 260px; overflow-y: auto; overflow-x: hidden; }
+    .master-table-wrap { max-height: calc(100vh - 300px); min-height: 260px; overflow: auto; }
     .master-table { min-width: 100%; }
     .master-table thead th { padding: 10px 14px; position: sticky; top: 0; z-index: 2; }
     .master-table tbody td { font-size: 13px; padding: 11px 14px; }
@@ -50,7 +50,7 @@
     .master-primary { color: var(--ink); font-weight: 850; }
     .master-secondary { color: var(--muted); display: block; font-size: 11px; font-weight: 650; margin-top: 2px; white-space: normal; }
     .master-code { color: var(--primary-dark); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 850; }
-    .master-actions-cell { background: inherit; }
+    .master-actions-cell { background: inherit; position: sticky; right: 0; z-index: 1; }
     .master-empty { color: var(--muted); padding: 34px; text-align: center; }
     .master-empty strong { color: var(--ink); display: block; font-size: 15px; margin-bottom: 4px; }
     .master-chip { align-items: center; border-radius: 999px; display: inline-flex; font-size: 11px; font-weight: 850; line-height: 1; padding: 6px 10px; white-space: nowrap; }
@@ -59,23 +59,11 @@
     .chip-rm { background: #f0fdf4; color: #15803d; }
     .chip-neutral { background: #f1f5f9; color: #475569; }
     .master-actions { display: flex; gap: 6px; justify-content: flex-end; }
-    .part-table { table-layout: fixed; }
-    .part-table th:nth-child(1) { width: 13%; }
-    .part-table th:nth-child(2) { width: 34%; }
-    .part-table th:nth-child(3) { width: 15%; }
-    .part-table th:nth-child(4) { width: 12%; }
-    .part-table th:nth-child(5) { width: 16%; }
-    .part-table th:nth-child(6) { width: 10%; }
-    .stacked-meta { color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; font-weight: 650; margin-top: 5px; }
-    .stacked-meta span { min-width: 0; overflow-wrap: anywhere; }
-    .num-line { color: var(--ink2); display: block; font-size: 12px; font-weight: 750; line-height: 1.5; }
-    .num-line em { color: var(--muted); font-style: normal; font-weight: 700; }
     @media (max-width: 900px) {
         .master-summary { grid-template-columns: 1fr 1fr; }
         .master-toolbar { align-items: stretch; flex-direction: column; }
         .master-search { max-width: none; }
-        .master-table-wrap { max-height: none; overflow-x: auto; }
-        .part-table { min-width: 760px; }
+        .master-table-wrap { max-height: none; }
     }
 </style>
 
@@ -134,18 +122,16 @@
         </div>
         <div class="master-toolbar">
             <div class="master-search"><input data-master-search placeholder="Cari buyer, code, name, item no..."></div>
-            <div class="master-count">Detail diringkas tanpa scroll kanan</div>
+            <div class="master-count">Scroll kanan untuk kolom detail</div>
         </div>
         <div class="master-table-wrap">
-            <table class="master-table part-table">
+            <table class="master-table" style="min-width:1280px">
                 <thead>
                     <tr>
-                        <th>Buyer</th>
-                        <th>Part</th>
-                        <th>Spec</th>
-                        <th>Dimensi</th>
-                        <th>Packing / Weight</th>
-                        <th class="master-actions-cell">Aksi</th>
+                        <th>Buyer</th><th>Kategori</th><th>Code</th><th>Name</th><th>Spec</th>
+                        <th class="td-num">W</th><th class="td-num">D</th><th class="td-num">H</th>
+                        <th class="td-num">CBM/Unit</th><th class="td-num">Net</th><th class="td-num">Gross</th>
+                        <th class="td-num">Pack/Box</th><th>Item No.</th><th>Goods Description</th><th class="master-actions-cell">Aksi</th>
                     </tr>
                 </thead>
                 <tbody data-master-body>
@@ -155,31 +141,20 @@
                         $classification = $part->classification === 'FG' ? 'Finish Good' : $part->classification;
                     @endphp
                     <tr data-master-row="{{ strtolower(($part->buyer?->name ?? '').' '.$part->classification.' '.$part->code.' '.$part->name.' '.$part->spec.' '.$part->item_no.' '.$part->goods_description) }}">
-                        <td>
-                            <span class="master-primary">{{ $part->buyer?->name ?? 'Umum' }}</span>
-                            <span class="master-secondary">{{ $part->buyer?->code ?? 'Semua buyer' }}</span>
-                        </td>
-                        <td>
-                            <span class="master-chip {{ $chipClass }}">{{ $classification }}</span>
-                            <span class="master-code" style="display:block;margin-top:7px">{{ $part->code }}</span>
-                            <span class="master-primary" style="display:block;margin-top:3px">{{ $part->name }}</span>
-                            <span class="stacked-meta">
-                                @if($part->item_no)<span>Item: {{ $part->item_no }}</span>@endif
-                                @if($part->goods_description)<span>{{ $part->goods_description }}</span>@endif
-                            </span>
-                        </td>
+                        <td><span class="master-primary">{{ $part->buyer?->name ?? 'Umum' }}</span><span class="master-secondary">{{ $part->buyer?->code ?? 'Semua buyer' }}</span></td>
+                        <td><span class="master-chip {{ $chipClass }}">{{ $classification }}</span></td>
+                        <td><span class="master-code">{{ $part->code }}</span></td>
+                        <td><span class="master-primary">{{ $part->name }}</span></td>
                         <td>{{ $part->spec ?? '-' }}</td>
-                        <td>
-                            <span class="num-line"><em>W</em> {{ $part->width_cm ?? '-' }}</span>
-                            <span class="num-line"><em>D</em> {{ $part->depth_cm ?? '-' }}</span>
-                            <span class="num-line"><em>H</em> {{ $part->height_cm ?? '-' }}</span>
-                        </td>
-                        <td>
-                            <span class="num-line"><em>CBM</em> {{ $part->cbm_per_unit ?? '-' }}</span>
-                            <span class="num-line"><em>Net</em> {{ $part->net_weight_pc ?? '-' }}</span>
-                            <span class="num-line"><em>Gross</em> {{ $part->gross_weight_pc ?? '-' }}</span>
-                            <span class="num-line"><em>Pack</em> {{ $part->package_box ?? '-' }}</span>
-                        </td>
+                        <td class="td-num">{{ $part->width_cm ?? '-' }}</td>
+                        <td class="td-num">{{ $part->depth_cm ?? '-' }}</td>
+                        <td class="td-num">{{ $part->height_cm ?? '-' }}</td>
+                        <td class="td-num">{{ $part->cbm_per_unit ?? '-' }}</td>
+                        <td class="td-num">{{ $part->net_weight_pc ?? '-' }}</td>
+                        <td class="td-num">{{ $part->gross_weight_pc ?? '-' }}</td>
+                        <td class="td-num">{{ $part->package_box ?? '-' }}</td>
+                        <td><span class="master-code">{{ $part->item_no ?? '-' }}</span></td>
+                        <td><span class="master-secondary" style="max-width:260px">{{ $part->goods_description ?? '-' }}</span></td>
                         <td class="master-actions-cell">
                             <form class="master-actions" method="post" action="/masters/parts/{{ $part->id }}" onsubmit="return confirm('Hapus part {{ $part->code }}?')">
                                 @csrf
@@ -189,7 +164,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6"><div class="master-empty"><strong>Belum ada part.</strong>Import dari Excel atau tambah manual dari tombol kanan atas.</div></td></tr>
+                    <tr><td colspan="15"><div class="master-empty"><strong>Belum ada part.</strong>Import dari Excel atau tambah manual dari tombol kanan atas.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>
