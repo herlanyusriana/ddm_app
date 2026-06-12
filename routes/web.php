@@ -25,10 +25,16 @@ Route::post('/masters/buyers',         [ProductionAdminController::class, 'store
 Route::delete('/masters/buyers/{buyer}', [ProductionAdminController::class, 'destroyBuyer'])->name('buyers.destroy');
 
 Route::get('/masters/parts/create',    [ProductionAdminController::class, 'createPart'])->name('parts.create');
+Route::get('/masters/parts/export',    [ProductionAdminController::class, 'exportParts'])->name('parts.export');
+Route::get('/masters/parts/import',    [ProductionAdminController::class, 'importPartsForm'])->name('parts.import.form');
+Route::post('/masters/parts/import',   [ProductionAdminController::class, 'importParts'])->name('parts.import');
 Route::post('/masters/parts',          [ProductionAdminController::class, 'storePart'])->name('parts.store');
 Route::delete('/masters/parts/{part}', [ProductionAdminController::class, 'destroyPart'])->name('parts.destroy');
 
 Route::get('/masters/sizes/create',    [ProductionAdminController::class, 'createSize'])->name('sizes.create');
+Route::get('/masters/sizes/export',    [ProductionAdminController::class, 'exportSizes'])->name('sizes.export');
+Route::get('/masters/sizes/import',    [ProductionAdminController::class, 'importSizesForm'])->name('sizes.import.form');
+Route::post('/masters/sizes/import',   [ProductionAdminController::class, 'importSizes'])->name('sizes.import');
 Route::post('/masters/sizes',          [ProductionAdminController::class, 'storeSize'])->name('sizes.store');
 Route::delete('/masters/sizes/{size}', [ProductionAdminController::class, 'destroySize'])->name('sizes.destroy');
 

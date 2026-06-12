@@ -51,7 +51,11 @@
         <article class="panel">
             <div class="panel-head">
                 <h2>Daftar Part</h2>
-                <a class="link-btn primary" href="/masters/parts/create">Tambah Part Baru</a>
+                <div class="td-actions">
+                    <a class="link-btn link-btn-secondary" href="/masters/parts/export">Export Excel</a>
+                    <a class="link-btn link-btn-secondary" href="/masters/parts/import">Import Excel</a>
+                    <a class="link-btn link-btn-primary" href="/masters/parts/create">Tambah Part Baru</a>
+                </div>
             </div>
             <div style="overflow-x:auto">
             <table>
@@ -94,7 +98,11 @@
         <article class="panel">
             <div class="panel-head">
                 <h2>Daftar Size</h2>
-                <a class="link-btn primary" href="/masters/sizes/create">Tambah Size Baru</a>
+                <div class="td-actions">
+                    <a class="link-btn link-btn-secondary" href="/masters/sizes/export">Export Excel</a>
+                    <a class="link-btn link-btn-secondary" href="/masters/sizes/import">Import Excel</a>
+                    <a class="link-btn link-btn-primary" href="/masters/sizes/create">Tambah Size Baru</a>
+                </div>
             </div>
             <table>
                 <thead><tr><th>Kode</th><th>Nama</th><th></th></tr></thead>

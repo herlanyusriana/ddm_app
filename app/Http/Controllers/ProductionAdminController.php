@@ -10,6 +10,7 @@ use App\Models\ProductionEntry;
 use App\Models\SizeVariant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -96,9 +97,19 @@ class ProductionAdminController extends Controller
         return view('production.part-create', ['buyers' => Buyer::orderBy('name')->get()]);
     }
 
+    public function importPartsForm(): View
+    {
+        return view('production.part-import');
+    }
+
     public function createSize(): View
     {
         return view('production.size-create');
+    }
+
+    public function importSizesForm(): View
+    {
+        return view('production.size-import');
     }
 
     public function storeBuyer(Request $request): RedirectResponse
@@ -147,6 +158,90 @@ class ProductionAdminController extends Controller
         return redirect('/masters/parts')->with('status', 'Part master terhapus.');
     }
 
+    public function exportParts(): Response
+    {
+        $headers = [
+            'buyer_code',
+            'classification',
+            'code',
+            'name',
+            'spec',
+            'width_cm',
+            'depth_cm',
+            'height_cm',
+            'cbm_per_unit',
+            'net_weight_pc',
+            'gross_weight_pc',
+            'package_box',
+            'item_no',
+            'goods_description',
+        ];
+
+        $rows = Part::with('buyer')->orderBy('code')->get()->map(fn (Part $part) => [
+            $part->buyer?->code,
+            $part->classification,
+            $part->code,
+            $part->name,
+            $part->spec,
+            $part->width_cm,
+            $part->depth_cm,
+            $part->height_cm,
+            $part->cbm_per_unit,
+            $part->net_weight_pc,
+            $part->gross_weight_pc,
+            $part->package_box,
+            $part->item_no,
+            $part->goods_description,
+        ]);
+
+        return $this->csvResponse('part_master_'.now()->format('Ymd_His').'.csv', $headers, $rows);
+    }
+
+    public function importParts(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt'],
+        ]);
+
+        $rows = $this->readCsvUpload($request->file('file')->getRealPath());
+        $saved = 0;
+
+        foreach ($rows as $row) {
+            $code = trim((string) ($row['code'] ?? ''));
+            $name = trim((string) ($row['name'] ?? ''));
+
+            if ($code === '' || $name === '') {
+                continue;
+            }
+
+            $buyer = null;
+            $buyerCode = trim((string) ($row['buyer_code'] ?? ''));
+            if ($buyerCode !== '') {
+                $buyer = Buyer::where('code', $buyerCode)->orWhere('name', $buyerCode)->first();
+            }
+
+            Part::updateOrCreate(['code' => $code], [
+                'buyer_id' => $buyer?->id,
+                'classification' => strtoupper((string) ($row['classification'] ?? 'FG')) ?: 'FG',
+                'name' => $name,
+                'spec' => $row['spec'] ?? null,
+                'width_cm' => $this->nullableNumber($row['width_cm'] ?? null),
+                'depth_cm' => $this->nullableNumber($row['depth_cm'] ?? null),
+                'height_cm' => $this->nullableNumber($row['height_cm'] ?? null),
+                'cbm_per_unit' => $this->nullableNumber($row['cbm_per_unit'] ?? null),
+                'net_weight_pc' => $this->nullableNumber($row['net_weight_pc'] ?? null),
+                'gross_weight_pc' => $this->nullableNumber($row['gross_weight_pc'] ?? null),
+                'package_box' => $this->nullableInteger($row['package_box'] ?? null),
+                'item_no' => $row['item_no'] ?? null,
+                'goods_description' => $row['goods_description'] ?? null,
+            ]);
+
+            $saved++;
+        }
+
+        return redirect('/masters/parts')->with('status', $saved.' part berhasil diimport.');
+    }
+
     public function storeSize(Request $request): RedirectResponse
     {
         SizeVariant::create($request->validate([
@@ -162,6 +257,42 @@ class ProductionAdminController extends Controller
         $size->delete();
 
         return redirect('/masters/sizes')->with('status', 'Size master terhapus.');
+    }
+
+    public function exportSizes(): Response
+    {
+        $rows = SizeVariant::orderBy('code')->get()->map(fn (SizeVariant $size) => [
+            $size->code,
+            $size->name,
+        ]);
+
+        return $this->csvResponse('size_master_'.now()->format('Ymd_His').'.csv', ['code', 'name'], $rows);
+    }
+
+    public function importSizes(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt'],
+        ]);
+
+        $rows = $this->readCsvUpload($request->file('file')->getRealPath());
+        $saved = 0;
+
+        foreach ($rows as $row) {
+            $code = trim((string) ($row['code'] ?? ''));
+
+            if ($code === '') {
+                continue;
+            }
+
+            SizeVariant::updateOrCreate(['code' => $code], [
+                'name' => $row['name'] ?? null,
+            ]);
+
+            $saved++;
+        }
+
+        return redirect('/masters/sizes')->with('status', $saved.' size berhasil diimport.');
     }
 
     public function storeMapping(Request $request): RedirectResponse
@@ -429,6 +560,75 @@ class ProductionAdminController extends Controller
         $lines[] = 'terimakasi';
 
         return trim(implode("\n", $lines));
+    }
+
+    private function csvResponse(string $filename, array $headers, $rows): Response
+    {
+        $output = fopen('php://temp', 'r+');
+        fputcsv($output, $headers);
+
+        foreach ($rows as $row) {
+            fputcsv($output, $row);
+        }
+
+        rewind($output);
+        $csv = stream_get_contents($output);
+        fclose($output);
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    private function readCsvUpload(string $path): array
+    {
+        $handle = fopen($path, 'r');
+        if (! $handle) {
+            return [];
+        }
+
+        $header = fgetcsv($handle);
+        if (! $header) {
+            fclose($handle);
+            return [];
+        }
+
+        $header = array_map(fn ($value) => $this->normalizeCsvHeader($value), $header);
+        $rows = [];
+
+        while (($line = fgetcsv($handle)) !== false) {
+            if (count(array_filter($line, fn ($value) => trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            $rows[] = array_combine($header, array_slice(array_pad($line, count($header), null), 0, count($header)));
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function normalizeCsvHeader(?string $value): string
+    {
+        $value = preg_replace('/^\xEF\xBB\xBF/', '', (string) $value);
+
+        return strtolower(trim(str_replace([' ', '-', '/', '.'], '_', $value)));
+    }
+
+    private function nullableNumber($value): ?float
+    {
+        $value = str_replace(',', '.', trim((string) $value));
+
+        return $value === '' ? null : (float) $value;
+    }
+
+    private function nullableInteger($value): ?int
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : (int) $value;
     }
 
     private function processRequiresPart(Process $process): bool

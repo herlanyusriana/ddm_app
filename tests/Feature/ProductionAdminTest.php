@@ -9,6 +9,7 @@ use App\Models\ProductionEntry;
 use App\Models\SizeVariant;
 use App\Models\Spk;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class ProductionAdminTest extends TestCase
@@ -255,6 +256,78 @@ class ProductionAdminTest extends TestCase
         $deleteResponse = $this->delete("/masters/sizes/{$size->id}");
         $deleteResponse->assertRedirect('/masters/sizes');
         $this->assertDatabaseMissing('size_variants', ['id' => $size->id]);
+    }
+
+    public function test_part_master_can_export_and_import_excel_csv(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ', 'name' => 'Amazon']);
+        Part::factory()->create([
+            'buyer_id' => $buyer->id,
+            'classification' => 'FG',
+            'code' => '03.01.MAT-08T',
+            'name' => '8inch Spring mattress Twin',
+            'spec' => '75*39*8inch',
+        ]);
+
+        $export = $this->get('/masters/parts/export');
+
+        $export->assertOk();
+        $export->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $export->assertSee('buyer_code,classification,code,name,spec', false);
+        $export->assertSee('03.01.MAT-08T', false);
+
+        $csv = implode("\n", [
+            'buyer_code,classification,code,name,spec,width_cm,depth_cm,height_cm,cbm_per_unit,net_weight_pc,gross_weight_pc,package_box,item_no,goods_description',
+            'AMZ,FG,03.01.MAT-08T,Updated Mattress,75*39*8inch,28,28,106,0.08,12.26,13.76,1,MAT-HY-BN-08T,8 inch Hybrid Spring Mattress Twin',
+            ',RM,01.01,Steel Wire,,,,,,,,,,',
+        ]);
+
+        $import = $this->post('/masters/parts/import', [
+            'file' => UploadedFile::fake()->createWithContent('parts.csv', $csv),
+        ]);
+
+        $import->assertSessionHasNoErrors();
+        $import->assertRedirect('/masters/parts');
+        $this->assertDatabaseHas('parts', [
+            'code' => '03.01.MAT-08T',
+            'name' => 'Updated Mattress',
+            'buyer_id' => $buyer->id,
+            'item_no' => 'MAT-HY-BN-08T',
+        ]);
+        $this->assertDatabaseHas('parts', [
+            'code' => '01.01',
+            'classification' => 'RM',
+            'name' => 'Steel Wire',
+        ]);
+        $this->assertDatabaseCount('parts', 2);
+    }
+
+    public function test_size_master_can_export_and_import_excel_csv(): void
+    {
+        SizeVariant::factory()->create(['code' => '12Q', 'name' => 'Queen']);
+
+        $export = $this->get('/masters/sizes/export');
+
+        $export->assertOk();
+        $export->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $export->assertSee('code,name', false);
+        $export->assertSee('12Q,Queen', false);
+
+        $csv = implode("\n", [
+            'code,name',
+            '12Q,Queen Updated',
+            '8T,Twin',
+        ]);
+
+        $import = $this->post('/masters/sizes/import', [
+            'file' => UploadedFile::fake()->createWithContent('sizes.csv', $csv),
+        ]);
+
+        $import->assertSessionHasNoErrors();
+        $import->assertRedirect('/masters/sizes');
+        $this->assertDatabaseHas('size_variants', ['code' => '12Q', 'name' => 'Queen Updated']);
+        $this->assertDatabaseHas('size_variants', ['code' => '8T', 'name' => 'Twin']);
+        $this->assertDatabaseCount('size_variants', 2);
     }
 
     public function test_dashboard_has_its_own_page(): void
