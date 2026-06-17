@@ -851,23 +851,26 @@ class ProductionAdminTest extends TestCase
         $buyer = Buyer::factory()->create(['name' => 'Amazon']);
 
         $response = $this->post('/spk', [
-            'spk_no' => 'PO-MD-26-23',
             'spk_date' => '2026-06-11',
             'dept' => 'Hotmelt, Binding, Packing',
             'month' => 'Juni',
-            'buyer_id' => $buyer->id,
-            'po_no' => 'PO-MD-26-23',
-            'item' => 'Bonel Spring',
-            'style' => '12" Queen',
-            'target_qty' => 200,
-            'remarks' => 'W~24',
             'shift' => '1',
+            'items' => [
+                [
+                    'buyer_id' => $buyer->id,
+                    'po_no' => 'PO-MD-26-23',
+                    'item' => 'Bonel Spring',
+                    'style' => '12" Queen',
+                    'target_qty' => 200,
+                    'remarks' => 'W~24',
+                ],
+            ],
         ]);
 
         $response->assertSessionHasNoErrors();
         $response->assertRedirect('/spk');
         $this->assertDatabaseHas('spks', [
-            'spk_no' => 'PO-MD-26-23',
+            'spk_no' => 'SPK-20260611-001',
             'spk_date' => '2026-06-11 00:00:00',
             'dept' => 'Hotmelt, Binding, Packing',
             'month' => 'Juni',
@@ -892,6 +895,55 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('Shift 1');
         $page->assertSee('Bonel Spring');
         $page->assertSee('12&quot; Queen', false);
+    }
+
+    public function test_spk_can_create_multiple_items_and_new_buyer_with_generated_number(): void
+    {
+        $amazon = Buyer::factory()->create(['name' => 'Amazon']);
+
+        $response = $this->post('/spk', [
+            'spk_date' => '2026-06-17',
+            'dept' => 'Hotmelt, Binding, Packing',
+            'month' => 'Juni',
+            'shift' => '2',
+            'notes' => 'Produksi harian',
+            'items' => [
+                [
+                    'buyer_id' => $amazon->id,
+                    'po_no' => 'PO-AMZ-001',
+                    'item' => 'Pocket Spring',
+                    'style' => '12" Queen',
+                    'target_qty' => 100,
+                    'remarks' => 'W~24',
+                ],
+                [
+                    'buyer_name' => 'Wayfair',
+                    'po_no' => 'PO-WF-001',
+                    'item' => 'Bonel Spring',
+                    'style' => '14" Queen',
+                    'target_qty' => 200,
+                    'remarks' => 'W~25',
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect('/spk');
+        $this->assertDatabaseHas('buyers', ['name' => 'Wayfair']);
+        $this->assertDatabaseHas('spks', [
+            'spk_no' => 'SPK-20260617-001',
+            'buyer_id' => $amazon->id,
+            'po_no' => 'PO-AMZ-001',
+            'item' => 'Pocket Spring',
+            'target_qty' => 100,
+        ]);
+        $this->assertDatabaseHas('spks', [
+            'spk_no' => 'SPK-20260617-001',
+            'po_no' => 'PO-WF-001',
+            'item' => 'Bonel Spring',
+            'target_qty' => 200,
+        ]);
+        $this->assertSame(2, Spk::where('spk_no', 'SPK-20260617-001')->count());
     }
 
     public function test_spk_list_create_and_delete_are_separated(): void
@@ -920,10 +972,11 @@ class ProductionAdminTest extends TestCase
 
         $createPage = $this->get('/spk/create');
         $createPage->assertOk();
-        $createPage->assertSee('name="spk_no"', false);
+        $createPage->assertDontSee('name="spk_no"', false);
         $createPage->assertSee('name="dept"', false);
-        $createPage->assertSee('name="item"', false);
-        $createPage->assertDontSee('Hapus');
+        $createPage->assertSee('name="items[0][item]"', false);
+        $createPage->assertSee('data-add-spk-item', false);
+        $createPage->assertDontSee('_method" value="DELETE', false);
 
         $deleteResponse = $this->delete("/spk/{$spk->id}");
         $deleteResponse->assertRedirect('/spk');

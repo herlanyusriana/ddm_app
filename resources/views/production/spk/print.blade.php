@@ -89,9 +89,9 @@
         </tr>
         <tr>
             <th>Buyer</th>
-            <td>{{ $spk->buyer->name }}</td>
+            <td>{{ ($spkItems ?? collect([$spk]))->pluck('buyer.name')->unique()->join(', ') }}</td>
             <th>PO</th>
-            <td>{{ $spk->po_no ?? '-' }}</td>
+            <td>{{ ($spkItems ?? collect([$spk]))->pluck('po_no')->filter()->unique()->join(', ') ?: '-' }}</td>
         </tr>
     </table>
 
@@ -99,6 +99,7 @@
         <thead>
             <tr>
                 <th style="width:54px">No</th>
+                <th>Buyer</th>
                 <th>Item</th>
                 <th>Style</th>
                 <th class="num">QTY Produksi</th>
@@ -106,13 +107,16 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td style="text-align:center">1</td>
-                <td>{{ $spk->item ?? $spk->part?->name ?? '-' }}</td>
-                <td>{{ $spk->style ?? $spk->sizeVariant?->code ?? '-' }}</td>
-                <td class="num">{{ number_format($spk->target_qty) }} pcs</td>
-                <td>{{ $spk->remarks ?? '-' }}</td>
-            </tr>
+            @foreach(($spkItems ?? collect([$spk])) as $item)
+                <tr>
+                    <td style="text-align:center">{{ $loop->iteration }}</td>
+                    <td>{{ $item->buyer->name }}</td>
+                    <td>{{ $item->item ?? $item->part?->name ?? '-' }}</td>
+                    <td>{{ $item->style ?? $item->sizeVariant?->code ?? '-' }}</td>
+                    <td class="num">{{ number_format($item->target_qty) }} pcs</td>
+                    <td>{{ $item->remarks ?? '-' }}</td>
+                </tr>
+            @endforeach
         </tbody>
     </table>
 
