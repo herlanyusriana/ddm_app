@@ -946,6 +946,51 @@ class ProductionAdminTest extends TestCase
         $this->assertSame(2, Spk::where('spk_no', 'SPK-20260617-001')->count());
     }
 
+    public function test_spk_item_can_autofill_from_part_master(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        $part = Part::factory()->create([
+            'buyer_id' => $buyer->id,
+            'classification' => 'FG',
+            'code' => '03.01.MAT-12Q',
+            'name' => '12inch Spring mattress Queen',
+            'spec' => '80*60*12inch',
+        ]);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+
+        $createPage = $this->get('/spk/create');
+        $createPage->assertOk();
+        $createPage->assertSee('data-part-select', false);
+        $createPage->assertSee('partMasterData', false);
+        $createPage->assertSee('03.01.MAT-12Q');
+        $createPage->assertSee('12inch Spring mattress Queen');
+
+        $response = $this->post('/spk', [
+            'spk_date' => '2026-06-17',
+            'dept' => 'Hotmelt, Binding, Packing',
+            'month' => 'Juni',
+            'shift' => '1',
+            'items' => [
+                [
+                    'part_id' => $part->id,
+                    'po_no' => 'PO-AMZ-012Q',
+                    'target_qty' => 120,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('spks', [
+            'spk_no' => 'SPK-20260617-001',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'item' => '12inch Spring mattress Queen',
+            'style' => '80*60*12inch',
+            'target_qty' => 120,
+        ]);
+    }
+
     public function test_spk_list_create_and_delete_are_separated(): void
     {
         $buyer = Buyer::factory()->create();

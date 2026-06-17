@@ -9,6 +9,7 @@ use App\Models\Spk;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 
 class SpkController extends Controller
@@ -22,7 +23,7 @@ class SpkController extends Controller
     public function create()
     {
         $buyers = Buyer::orderBy('name')->get();
-        $parts  = Part::orderBy('code')->get();
+        $parts  = Part::with('buyer')->orderBy('code')->get();
         $sizes  = SizeVariant::orderBy('code')->get();
         return view('production.spk.create', compact('buyers', 'parts', 'sizes'));
     }
@@ -49,21 +50,43 @@ class SpkController extends Controller
             'shift' => ['required', Rule::in(['1', '2', '3'])],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.buyer_id' => ['nullable', 'exists:buyers,id', 'required_without:items.*.buyer_name'],
+            'items.*.buyer_id' => ['nullable', 'exists:buyers,id'],
             'items.*.buyer_name' => ['nullable', 'string', 'max:120'],
             'items.*.po_no' => ['required', 'string', 'max:80'],
-            'items.*.item' => ['required', 'string', 'max:120'],
-            'items.*.style' => ['required', 'string', 'max:120'],
+            'items.*.item' => ['nullable', 'string', 'max:120'],
+            'items.*.style' => ['nullable', 'string', 'max:120'],
             'items.*.part_id' => ['nullable', 'exists:parts,id'],
             'items.*.size_variant_id' => ['nullable', 'exists:size_variants,id'],
             'items.*.target_qty' => ['required', 'integer', 'min:1'],
             'items.*.remarks' => ['nullable', 'string', 'max:120'],
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $items = collect($validated['items'])
+            ->map(fn ($item) => $this->hydrateSpkItemFromPart($item))
+            ->values()
+            ->all();
+
+        $errors = [];
+        foreach ($items as $index => $item) {
+            if (empty($item['buyer_id']) && trim((string) ($item['buyer_name'] ?? '')) === '') {
+                $errors["items.$index.buyer_id"] = 'Pilih part yang punya buyer, pilih buyer, atau isi buyer baru.';
+            }
+            if (trim((string) ($item['item'] ?? '')) === '') {
+                $errors["items.$index.item"] = 'Item wajib diisi atau pilih Part Master yang punya nama.';
+            }
+            if (trim((string) ($item['style'] ?? '')) === '') {
+                $errors["items.$index.style"] = 'Style wajib diisi atau pilih Part Master yang punya spec.';
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        DB::transaction(function () use ($validated, $items) {
             $spkNo = $this->generateSpkNumber($validated['spk_date']);
 
-            foreach ($validated['items'] as $item) {
+            foreach ($items as $item) {
                 $buyer = $this->buyerForSpkItem($item);
 
                 Spk::create([
@@ -168,6 +191,35 @@ class SpkController extends Controller
             ['name' => $name],
             ['code' => $this->uniqueBuyerCode($name), 'is_active' => true]
         );
+    }
+
+    private function hydrateSpkItemFromPart(array $item): array
+    {
+        if (empty($item['part_id'])) {
+            return $item;
+        }
+
+        $part = Part::find($item['part_id']);
+        if (! $part) {
+            return $item;
+        }
+
+        $item['buyer_id'] = ! empty($item['buyer_id']) ? $item['buyer_id'] : $part->buyer_id;
+        $item['item'] = trim((string) ($item['item'] ?? '')) !== '' ? $item['item'] : $part->name;
+        $item['style'] = trim((string) ($item['style'] ?? '')) !== '' ? $item['style'] : ($part->spec ?: $part->goods_description);
+        $item['size_variant_id'] = ! empty($item['size_variant_id']) ? $item['size_variant_id'] : $this->sizeVariantIdFromPart($part);
+
+        return $item;
+    }
+
+    private function sizeVariantIdFromPart(Part $part): ?int
+    {
+        $haystack = strtoupper($part->code.' '.$part->name.' '.$part->spec.' '.$part->item_no);
+
+        return SizeVariant::all()
+            ->sortByDesc(fn (SizeVariant $size) => strlen($size->code))
+            ->first(fn (SizeVariant $size) => $size->code !== '' && str_contains($haystack, strtoupper($size->code)))
+            ?->id;
     }
 
     private function uniqueBuyerCode(string $name): string

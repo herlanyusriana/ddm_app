@@ -17,6 +17,18 @@
         'target_qty' => '',
         'remarks' => '',
     ]]);
+    $partPayload = $parts->map(fn ($part) => [
+        'id' => $part->id,
+        'buyer_id' => $part->buyer_id,
+        'name' => $part->name,
+        'spec' => $part->spec,
+        'code' => $part->code,
+        'item_no' => $part->item_no,
+    ])->values();
+    $sizePayload = $sizes->map(fn ($size) => [
+        'id' => $size->id,
+        'code' => $size->code,
+    ])->values();
 @endphp
 
 <style>
@@ -148,6 +160,15 @@
                         </div>
                         <div class="spk-item-body">
                             <div class="field">
+                                <label>Part Master</label>
+                                <select name="items[{{ $index }}][part_id]" data-part-select>
+                                    <option value="">— Pilih Part —</option>
+                                    @foreach($parts as $part)
+                                        <option value="{{ $part->id }}" @selected(($item['part_id'] ?? '') == $part->id)>{{ $part->code }} — {{ $part->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="field">
                                 <label>Buyer</label>
                                 <select name="items[{{ $index }}][buyer_id]" data-buyer-select>
                                     <option value="">— Pilih Buyer —</option>
@@ -166,38 +187,29 @@
                                 <input name="items[{{ $index }}][po_no]" placeholder="PO-MD-26-23" value="{{ $item['po_no'] ?? '' }}" required>
                             </div>
                             <div class="field">
-                                <label>Item</label>
-                                <input name="items[{{ $index }}][item]" placeholder="Pocket Spring" value="{{ $item['item'] ?? '' }}" required>
-                            </div>
-                            <div class="field">
-                                <label>Style</label>
-                                <input name="items[{{ $index }}][style]" placeholder='12" Queen' value="{{ $item['style'] ?? '' }}" required>
-                            </div>
-                            <div class="field">
                                 <label>QTY Produksi</label>
                                 <input type="number" name="items[{{ $index }}][target_qty]" min="1" value="{{ $item['target_qty'] ?? '' }}" required>
                             </div>
                             <div class="field">
-                                <label>Remarks</label>
-                                <input name="items[{{ $index }}][remarks]" placeholder="W~24" value="{{ $item['remarks'] ?? '' }}">
+                                <label>Item</label>
+                                <input name="items[{{ $index }}][item]" placeholder="Autofill dari Part Master" value="{{ $item['item'] ?? '' }}">
                             </div>
                             <div class="field">
-                                <label>Part Master</label>
-                                <select name="items[{{ $index }}][part_id]">
-                                    <option value="">— Opsional —</option>
-                                    @foreach($parts as $part)
-                                        <option value="{{ $part->id }}" @selected(($item['part_id'] ?? '') == $part->id)>{{ $part->code }} — {{ $part->name }}</option>
-                                    @endforeach
-                                </select>
+                                <label>Style</label>
+                                <input name="items[{{ $index }}][style]" placeholder="Autofill dari spec part" value="{{ $item['style'] ?? '' }}">
                             </div>
                             <div class="field">
                                 <label>Size Master</label>
                                 <select name="items[{{ $index }}][size_variant_id]">
-                                    <option value="">— Opsional —</option>
+                                    <option value="">— Autofill jika terdeteksi —</option>
                                     @foreach($sizes as $size)
                                         <option value="{{ $size->id }}" @selected(($item['size_variant_id'] ?? '') == $size->id)>{{ $size->code }}</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="field">
+                                <label>Remarks</label>
+                                <input name="items[{{ $index }}][remarks]" placeholder="W~24" value="{{ $item['remarks'] ?? '' }}">
                             </div>
                         </div>
                     </div>
@@ -220,6 +232,15 @@
         </div>
         <div class="spk-item-body">
             <div class="field">
+                <label>Part Master</label>
+                <select name="items[__INDEX__][part_id]" data-part-select>
+                    <option value="">— Pilih Part —</option>
+                    @foreach($parts as $part)
+                        <option value="{{ $part->id }}">{{ $part->code }} — {{ $part->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="field">
                 <label>Buyer</label>
                 <select name="items[__INDEX__][buyer_id]" data-buyer-select>
                     <option value="">— Pilih Buyer —</option>
@@ -234,33 +255,64 @@
                 <input name="items[__INDEX__][buyer_name]" placeholder="Wayfair">
             </div>
             <div class="field"><label>PO</label><input name="items[__INDEX__][po_no]" placeholder="PO-MD-26-23" required></div>
-            <div class="field"><label>Item</label><input name="items[__INDEX__][item]" placeholder="Pocket Spring" required></div>
-            <div class="field"><label>Style</label><input name="items[__INDEX__][style]" placeholder='12" Queen' required></div>
             <div class="field"><label>QTY Produksi</label><input type="number" name="items[__INDEX__][target_qty]" min="1" required></div>
-            <div class="field"><label>Remarks</label><input name="items[__INDEX__][remarks]" placeholder="W~24"></div>
-            <div class="field">
-                <label>Part Master</label>
-                <select name="items[__INDEX__][part_id]">
-                    <option value="">— Opsional —</option>
-                    @foreach($parts as $part)
-                        <option value="{{ $part->id }}">{{ $part->code }} — {{ $part->name }}</option>
-                    @endforeach
-                </select>
-            </div>
+            <div class="field"><label>Item</label><input name="items[__INDEX__][item]" placeholder="Autofill dari Part Master"></div>
+            <div class="field"><label>Style</label><input name="items[__INDEX__][style]" placeholder="Autofill dari spec part"></div>
             <div class="field">
                 <label>Size Master</label>
                 <select name="items[__INDEX__][size_variant_id]">
-                    <option value="">— Opsional —</option>
+                    <option value="">— Autofill jika terdeteksi —</option>
                     @foreach($sizes as $size)
                         <option value="{{ $size->id }}">{{ $size->code }}</option>
                     @endforeach
                 </select>
             </div>
+            <div class="field"><label>Remarks</label><input name="items[__INDEX__][remarks]" placeholder="W~24"></div>
         </div>
     </div>
 </template>
 
 <script>
+    const partMasterData = @json($partPayload);
+    const sizeMasterData = @json($sizePayload);
+
+    function detectSizeFromPart(part) {
+        const haystack = `${part.code || ''} ${part.name || ''} ${part.spec || ''} ${part.item_no || ''}`.toUpperCase();
+        return [...sizeMasterData]
+            .sort((a, b) => String(b.code).length - String(a.code).length)
+            .find((size) => size.code && haystack.includes(String(size.code).toUpperCase()));
+    }
+
+    function applyPartAutofill(card, force = false) {
+        const partSelect = card.querySelector('[data-part-select]');
+        const buyerSelect = card.querySelector('[data-buyer-select]');
+        const itemInput = card.querySelector('input[name$="[item]"]');
+        const styleInput = card.querySelector('input[name$="[style]"]');
+        const sizeSelect = card.querySelector('select[name$="[size_variant_id]"]');
+        const selectedPart = partMasterData.find((part) => String(part.id) === String(partSelect?.value || ''));
+
+        if (!selectedPart) {
+            return;
+        }
+
+        if (buyerSelect && selectedPart.buyer_id) {
+            buyerSelect.value = selectedPart.buyer_id;
+        }
+
+        if (itemInput && (force || itemInput.value.trim() === '')) {
+            itemInput.value = selectedPart.name || '';
+        }
+
+        if (styleInput && (force || styleInput.value.trim() === '')) {
+            styleInput.value = selectedPart.spec || '';
+        }
+
+        const detectedSize = detectSizeFromPart(selectedPart);
+        if (sizeSelect && detectedSize && (force || sizeSelect.value === '')) {
+            sizeSelect.value = detectedSize.id;
+        }
+    }
+
     function refreshSpkItems() {
         document.querySelectorAll('[data-spk-item]').forEach((card, index) => {
             card.querySelector('.spk-item-head strong').textContent = `Item ${index + 1}`;
@@ -271,6 +323,7 @@
 
             const buyerSelect = card.querySelector('[data-buyer-select]');
             card.classList.toggle('use-new-buyer', buyerSelect?.value === '__new');
+            applyPartAutofill(card);
         });
     }
 
@@ -291,6 +344,11 @@
 
     document.addEventListener('change', (event) => {
         if (event.target.matches('[data-buyer-select]')) {
+            refreshSpkItems();
+        }
+
+        if (event.target.matches('[data-part-select]')) {
+            applyPartAutofill(event.target.closest('[data-spk-item]'), true);
             refreshSpkItems();
         }
     });
