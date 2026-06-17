@@ -15,7 +15,7 @@
 @section('content')
 @php
     $totalGood = $summaries->sum('good_qty');
-    $totalNg = $summaries->sum('ng_qty');
+    $totalReject = $summaries->sum('ng_qty');
     $totalQty = $summaries->sum('total_qty');
     $activeProcesses = $summaries->filter(fn ($summary) => $summary['total_qty'] > 0)->count();
 @endphp
@@ -171,7 +171,7 @@
     <article class="dashboard-stat">
         <span>Total Produksi</span>
         <strong>{{ number_format($totalQty) }}</strong>
-        <small>Good + NG</small>
+        <small>Good + Reject</small>
     </article>
     <article class="dashboard-stat">
         <span>Good</span>
@@ -179,9 +179,9 @@
         <small>Unit OK</small>
     </article>
     <article class="dashboard-stat">
-        <span>NG</span>
-        <strong style="color:var(--danger)">{{ number_format($totalNg) }}</strong>
-        <small>Rework + Scrap</small>
+        <span>Reject</span>
+        <strong style="color:var(--danger)">{{ number_format($totalReject) }}</strong>
+        <small>Masuk hutang rework</small>
     </article>
     <article class="dashboard-stat">
         <span>Proses Aktif</span>
@@ -209,7 +209,7 @@
                     <strong style="color:var(--success)">{{ number_format($good) }}</strong>
                 </div>
                 <div>
-                    <span>NG</span>
+                    <span>Reject</span>
                     <strong style="color:var(--danger)">{{ number_format($ng) }}</strong>
                 </div>
             </div>

@@ -232,7 +232,7 @@
         <div class="panel-header"><h2>Process Master</h2><span class="badge badge-neutral">Alur produksi</span></div>
         <div class="master-table-wrap">
             <table class="master-table">
-                <thead><tr><th>Urutan</th><th>Proses</th><th>Input Good/NG</th><th>FG</th></tr></thead>
+                <thead><tr><th>Urutan</th><th>Proses</th><th>Input Good/Reject</th><th>FG</th></tr></thead>
                 <tbody>
                 @forelse($processes as $process)
                     <tr>

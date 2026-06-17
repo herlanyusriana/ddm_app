@@ -1,4 +1,4 @@
-@extends('production.layout', ['title' => $pageTitle, 'subtitle' => 'Input Good, Rework, dan Scrap per proses'])
+@extends('production.layout', ['title' => $pageTitle, 'subtitle' => 'Input Good dan Reject per proses'])
 
 @section('topbar-actions')
     <form class="filter-bar" method="get" action="" style="margin:0;border:0;background:transparent;padding:0">
@@ -46,6 +46,16 @@
         font-size: 11px;
         font-weight: 600;
         line-height: 1.35;
+    }
+
+    .qty-grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (max-width: 760px) {
+        .qty-grid-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
     }
 </style>
 
@@ -133,18 +143,14 @@
 
                 <div>
                     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
-                    <div class="qty-grid">
+                    <div class="qty-grid qty-grid-2">
                         <div class="qty-box good">
                             <label>✅ Good</label>
                             <input type="number" min="0" name="good_qty" value="0">
                         </div>
                         <div class="qty-box rework">
-                            <label>🔧 Rework</label>
-                            <input type="number" min="0" name="repairable_qty" value="0">
-                        </div>
-                        <div class="qty-box scrap">
-                            <label>🗑 Scrap</label>
-                            <input type="number" min="0" name="scrap_qty" value="0">
+                            <label>🔧 Reject</label>
+                            <input type="number" min="0" name="reject_qty" value="0">
                         </div>
                     </div>
                 </div>
@@ -174,9 +180,7 @@
                             <th>Proses</th>
                             @if($pageType === 'hasil')<th>Buyer</th><th>Part</th><th>Size</th>@endif
                             <th class="td-num">Good</th>
-                            <th class="td-num">Rework</th>
-                            <th class="td-num">Scrap</th>
-                            <th class="td-num text-muted">Total NG</th>
+                            <th class="td-num">Reject</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -190,12 +194,10 @@
                             <td>{{ $entry->sizeVariant?->code ?? '—' }}</td>
                             @endif
                             <td class="td-num font-bold" style="color:var(--success)">{{ $entry->good_qty }}</td>
-                            <td class="td-num" style="color:var(--warning)">{{ $entry->repairable_qty }}</td>
-                            <td class="td-num" style="color:var(--danger)">{{ $entry->scrap_qty }}</td>
-                            <td class="td-num text-muted text-sm">{{ $entry->ng_qty }}</td>
+                            <td class="td-num" style="color:var(--warning)">{{ $entry->ng_qty }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $pageType === 'hasil' ? 9 : 6 }}">
+                        <tr><td colspan="{{ $pageType === 'hasil' ? 7 : 4 }}">
                             <div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada input untuk filter ini.</p></div>
                         </td></tr>
                     @endforelse
@@ -281,8 +283,7 @@
         const targetInfo = document.querySelector('[data-spk-target-info]');
         const warning = document.querySelector('[data-spk-warning]');
         const goodInput = Number(document.querySelector('input[name="good_qty"]').value || 0);
-        const repairableInput = Number(document.querySelector('input[name="repairable_qty"]').value || 0);
-        const scrapInput = Number(document.querySelector('input[name="scrap_qty"]').value || 0);
+        const rejectInput = Number(document.querySelector('input[name="reject_qty"]').value || 0);
 
         if (!spkSelect || !targetInfo || !warning) {
             return;
@@ -292,7 +293,7 @@
         const targetQty = selected ? Number(selected.dataset.targetQty || 0) : 0;
         const spkId = selected ? selected.value : null;
         const processId = processInput ? processInput.value : null;
-        const entryQty = goodInput + repairableInput + scrapInput;
+        const entryQty = goodInput + rejectInput;
 
         let currentQty = 0;
         if (spkId && processId && spkProcessTotals[spkId] && spkProcessTotals[spkId][processId]) {
@@ -323,8 +324,7 @@
     document.querySelector('select[name="spk_id"]')?.addEventListener('change', updateSpkTargetInfo);
     document.querySelectorAll('input[name="process_id"]').forEach((radio) => radio.addEventListener('change', updateSpkTargetInfo));
     document.querySelector('input[name="good_qty"]')?.addEventListener('input', updateSpkTargetInfo);
-    document.querySelector('input[name="repairable_qty"]')?.addEventListener('input', updateSpkTargetInfo);
-    document.querySelector('input[name="scrap_qty"]')?.addEventListener('input', updateSpkTargetInfo);
+    document.querySelector('input[name="reject_qty"]')?.addEventListener('input', updateSpkTargetInfo);
     updateSpkTargetInfo();
 </script>
 @endsection

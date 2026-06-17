@@ -94,23 +94,18 @@
         <div class="panel-body">
             @php
                 $totalGood = $spk->entries->sum('good_qty');
-                $totalRepairable = $spk->entries->sum('repairable_qty');
-                $totalScrap = $spk->entries->sum('scrap_qty');
+                $totalReject = $spk->entries->sum('ng_qty');
                 $pct = $spk->target_qty > 0 ? min(100, round($totalGood / $spk->target_qty * 100)) : 0;
             @endphp
 
-            <div class="grid grid-3" style="gap:12px;margin-bottom:20px">
+            <div class="grid grid-2" style="gap:12px;margin-bottom:20px">
                 <div class="stat" style="padding:14px">
                     <div class="stat-label" style="color:var(--success)">Good</div>
                     <div class="stat-value" style="font-size:26px;color:var(--success)">{{ number_format($totalGood) }}</div>
                 </div>
                 <div class="stat" style="padding:14px">
-                    <div class="stat-label" style="color:var(--warning)">Rework</div>
-                    <div class="stat-value" style="font-size:26px;color:var(--warning)">{{ number_format($totalRepairable) }}</div>
-                </div>
-                <div class="stat" style="padding:14px">
-                    <div class="stat-label" style="color:var(--danger)">Scrap</div>
-                    <div class="stat-value" style="font-size:26px;color:var(--danger)">{{ number_format($totalScrap) }}</div>
+                    <div class="stat-label" style="color:var(--warning)">Reject / Hutang Rework</div>
+                    <div class="stat-value" style="font-size:26px;color:var(--warning)">{{ number_format($totalReject) }}</div>
                 </div>
             </div>
 
@@ -129,18 +124,17 @@
 
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Proses</th><th>Shift</th><th class="td-num">Good</th><th class="td-num">Rework</th><th class="td-num">Scrap</th></tr></thead>
+                    <thead><tr><th>Proses</th><th>Shift</th><th class="td-num">Good</th><th class="td-num">Reject</th></tr></thead>
                     <tbody>
                     @forelse($spk->entries->sortByDesc('id') as $entry)
                         <tr>
                             <td>{{ $entry->process->name }}</td>
                             <td>Shift {{ $entry->shift }}</td>
                             <td class="td-num" style="color:var(--success)">{{ $entry->good_qty }}</td>
-                            <td class="td-num" style="color:var(--warning)">{{ $entry->repairable_qty }}</td>
-                            <td class="td-num" style="color:var(--danger)">{{ $entry->scrap_qty }}</td>
+                            <td class="td-num" style="color:var(--warning)">{{ $entry->ng_qty }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5"><div class="empty-state" style="padding:24px"><p>Belum ada input produksi untuk SPK ini.</p></div></td></tr>
+                        <tr><td colspan="4"><div class="empty-state" style="padding:24px"><p>Belum ada input produksi untuk SPK ini.</p></div></td></tr>
                     @endforelse
                     </tbody>
                 </table>

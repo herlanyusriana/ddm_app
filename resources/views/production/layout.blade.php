@@ -563,6 +563,9 @@
                 <a class="nav-link {{ request()->is('input-hasil') ? 'active' : '' }}" href="/input-hasil">
                     <span class="icon">✅</span> Input Hasil (FG)
                 </a>
+                <a class="nav-link {{ request()->is('rework') ? 'active' : '' }}" href="/rework">
+                    <span class="icon">🔧</span> Rework
+                </a>
             </div>
 
             <div class="nav-divider"></div>
@@ -635,9 +638,9 @@
         <span class="bottom-icon">✅</span>
         <span>Input</span>
     </a>
-    <a class="app-bottom-link {{ request()->is('reports/fg*') ? 'active' : '' }}" href="/reports/fg">
-        <span class="bottom-icon">📄</span>
-        <span>Report</span>
+    <a class="app-bottom-link {{ request()->is('rework') ? 'active' : '' }}" href="/rework">
+        <span class="bottom-icon">🔧</span>
+        <span>Rework</span>
     </a>
 </nav>
 <div class="install-prompt" data-install-prompt>

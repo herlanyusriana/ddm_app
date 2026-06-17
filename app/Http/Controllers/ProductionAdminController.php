@@ -108,6 +108,35 @@ class ProductionAdminController extends Controller
         ]);
     }
 
+    public function reworkPage(Request $request): View
+    {
+        $rows = ProductionEntry::query()
+            ->with(['spk.buyer', 'process'])
+            ->where('repairable_qty', '>', 0)
+            ->latest()
+            ->get()
+            ->groupBy(fn (ProductionEntry $entry) => $entry->spk_id.'-'.$entry->process_id)
+            ->map(function ($entries) {
+                $first = $entries->first();
+
+                return [
+                    'spk' => $first->spk,
+                    'process' => $first->process,
+                    'reject_qty' => (int) $entries->sum('repairable_qty'),
+                    'last_date' => $entries->max('production_date'),
+                    'records' => $entries->count(),
+                ];
+            })
+            ->sortByDesc('reject_qty')
+            ->values();
+
+        return view('production.rework', [
+            'rows' => $rows,
+            'totalReject' => (int) $rows->sum('reject_qty'),
+            'totalSpk' => $rows->pluck('spk.id')->filter()->unique()->count(),
+        ]);
+    }
+
     public function createBuyer(): View
     {
         return view('production.buyer-create');
@@ -344,8 +373,8 @@ class ProductionAdminController extends Controller
         $spk = Spk::find($request->input('spk_id'));
 
         $request->merge([
-            'repairable_qty' => $request->input('repairable_qty', $request->input('ng_qty', 0)),
-            'scrap_qty' => $request->input('scrap_qty', 0),
+            'repairable_qty' => $request->input('reject_qty', $request->input('repairable_qty', $request->input('ng_qty', 0))),
+            'scrap_qty' => 0,
         ]);
 
         $validated = $request->validate([
@@ -369,7 +398,7 @@ class ProductionAdminController extends Controller
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
             return back()
-                ->withErrors(['good_qty' => 'Total produksi (Good + NG) harus lebih dari 0.'])
+                ->withErrors(['good_qty' => 'Total produksi (Good + Reject) harus lebih dari 0.'])
                 ->withInput();
         }
 
@@ -490,8 +519,8 @@ class ProductionAdminController extends Controller
         $spk = Spk::find($request->input('spk_id'));
 
         $request->merge([
-            'repairable_qty' => $request->input('repairable_qty', $request->input('ng_qty', 0)),
-            'scrap_qty' => $request->input('scrap_qty', 0),
+            'repairable_qty' => $request->input('reject_qty', $request->input('repairable_qty', $request->input('ng_qty', 0))),
+            'scrap_qty' => 0,
         ]);
 
         $validated = $request->validate([
@@ -514,7 +543,7 @@ class ProductionAdminController extends Controller
         $validated['ng_qty'] = $validated['repairable_qty'] + $validated['scrap_qty'];
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
-            return response()->json(['message' => 'Total produksi (Good + NG) harus lebih dari 0.'], 422);
+            return response()->json(['message' => 'Total produksi (Good + Reject) harus lebih dari 0.'], 422);
         }
 
         if ($spk && $process) {

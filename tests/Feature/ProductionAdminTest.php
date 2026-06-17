@@ -390,7 +390,7 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('Dashboard Produksi');
         $response->assertSee('Total Produksi');
         $response->assertSee('Good');
-        $response->assertSee('NG');
+        $response->assertSee('Reject');
         $response->assertSee('process-dashboard-grid', false);
         $response->assertSee('Packing');
         $response->assertDontSee('Tambah Buyer');
@@ -532,8 +532,7 @@ class ProductionAdminTest extends TestCase
             'buyer_id' => $buyer->id,
             'process_id' => $process->id,
             'good_qty' => 31,
-            'repairable_qty' => 0,
-            'scrap_qty' => 0,
+            'reject_qty' => 0,
         ]);
 
         $response->assertSessionHasErrors('good_qty');
@@ -550,8 +549,7 @@ class ProductionAdminTest extends TestCase
             'buyer_id' => $buyer->id,
             'process_id' => $process->id,
             'good_qty' => 20,
-            'repairable_qty' => 5,
-            'scrap_qty' => 5,
+            'reject_qty' => 10,
         ]);
 
         $ok->assertSessionHasNoErrors();
@@ -559,8 +557,8 @@ class ProductionAdminTest extends TestCase
             'spk_id' => $spk->id,
             'process_id' => $process->id,
             'good_qty' => 20,
-            'repairable_qty' => 5,
-            'scrap_qty' => 5,
+            'repairable_qty' => 10,
+            'scrap_qty' => 0,
             'ng_qty' => 10,
         ]);
     }
@@ -590,8 +588,7 @@ class ProductionAdminTest extends TestCase
             'buyer_id' => $buyer->id,
             'process_id' => $process->id,
             'good_qty' => 6,
-            'repairable_qty' => 0,
-            'scrap_qty' => 0,
+            'reject_qty' => 0,
         ]);
 
         $response->assertStatus(422);
@@ -620,6 +617,52 @@ class ProductionAdminTest extends TestCase
         $resultPage->assertSee('name="buyer_id"', false);
         $resultPage->assertSee('name="part_id"', false);
         $resultPage->assertSee('name="size_variant_id"', false);
+    }
+
+    public function test_production_input_uses_good_and_reject_only(): void
+    {
+        Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+        $page = $this->get('/input-proses');
+
+        $page->assertOk();
+        $page->assertSee('name="good_qty"', false);
+        $page->assertSee('name="reject_qty"', false);
+        $page->assertDontSee('name="repairable_qty"', false);
+        $page->assertDontSee('name="scrap_qty"', false);
+        $page->assertSee('Reject');
+    }
+
+    public function test_reject_input_creates_rework_debt(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        $spk = Spk::factory()->create(['buyer_id' => $buyer->id, 'spk_no' => 'SPK-RWK-001', 'target_qty' => 100]);
+        $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+
+        $response = $this->post('/production-entries', [
+            'spk_id' => $spk->id,
+            'production_date' => '2026-06-17',
+            'shift' => '1',
+            'process_id' => $process->id,
+            'good_qty' => 80,
+            'reject_qty' => 5,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('production_entries', [
+            'spk_id' => $spk->id,
+            'process_id' => $process->id,
+            'good_qty' => 80,
+            'repairable_qty' => 5,
+            'scrap_qty' => 0,
+            'ng_qty' => 5,
+        ]);
+
+        $rework = $this->get('/rework');
+        $rework->assertOk();
+        $rework->assertSee('Hutang Rework');
+        $rework->assertSee('SPK-RWK-001');
+        $rework->assertSee('Sewing');
+        $rework->assertSee('5');
     }
 
     public function test_fg_input_filters_parts_by_selected_spk_buyer(): void
@@ -689,8 +732,7 @@ class ProductionAdminTest extends TestCase
             'size_variant_id' => $size->id,
             'process_id' => $packing->id,
             'good_qty' => 60,
-            'repairable_qty' => 10,
-            'scrap_qty' => 0,
+            'reject_qty' => 10,
         ]);
 
         $firstResponse->assertSessionHasNoErrors();
@@ -710,8 +752,7 @@ class ProductionAdminTest extends TestCase
             'size_variant_id' => $size->id,
             'process_id' => $packing->id,
             'good_qty' => 31,
-            'repairable_qty' => 0,
-            'scrap_qty' => 0,
+            'reject_qty' => 0,
         ]);
 
         $secondResponse->assertSessionHasErrors('good_qty');
@@ -739,8 +780,7 @@ class ProductionAdminTest extends TestCase
             'size_variant_id' => $size->id,
             'process_id' => $packing->id,
             'good_qty' => 60,
-            'repairable_qty' => 10,
-            'scrap_qty' => 0,
+            'reject_qty' => 10,
         ]);
 
         $response = $this->postJson('/api/production-entries', [
@@ -752,8 +792,7 @@ class ProductionAdminTest extends TestCase
             'size_variant_id' => $size->id,
             'process_id' => $packing->id,
             'good_qty' => 31,
-            'repairable_qty' => 0,
-            'scrap_qty' => 0,
+            'reject_qty' => 0,
         ]);
 
         $response->assertStatus(422);
