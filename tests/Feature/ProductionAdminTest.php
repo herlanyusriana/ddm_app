@@ -991,6 +991,73 @@ class ProductionAdminTest extends TestCase
         ]);
     }
 
+    public function test_spk_part_selection_only_allows_finish_good_parts(): void
+    {
+        $buyer = Buyer::factory()->create(['name' => 'Amazon']);
+        $fgPart = Part::factory()->create([
+            'buyer_id' => $buyer->id,
+            'classification' => 'FG',
+            'code' => 'FG-12Q',
+            'name' => 'Finish Good Mattress',
+            'spec' => '12 Queen',
+        ]);
+        $rmPart = Part::factory()->create([
+            'buyer_id' => $buyer->id,
+            'classification' => 'RM',
+            'code' => 'RM-WIRE',
+            'name' => 'Steel Wire',
+            'spec' => 'Wire',
+        ]);
+        $wipPart = Part::factory()->create([
+            'buyer_id' => $buyer->id,
+            'classification' => 'WIP',
+            'code' => 'WIP-POCKET',
+            'name' => 'Pocket Spring WIP',
+            'spec' => 'WIP',
+        ]);
+
+        $createPage = $this->get('/spk/create');
+        $createPage->assertOk();
+        $createPage->assertSee('FG-12Q');
+        $createPage->assertDontSee('RM-WIRE');
+        $createPage->assertDontSee('WIP-POCKET');
+
+        $response = $this->post('/spk', [
+            'spk_date' => '2026-06-17',
+            'dept' => 'Hotmelt, Binding, Packing',
+            'month' => 'Juni',
+            'shift' => '1',
+            'items' => [
+                [
+                    'part_id' => $rmPart->id,
+                    'po_no' => 'PO-RM',
+                    'target_qty' => 10,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors('items.0.part_id');
+        $this->assertDatabaseMissing('spks', ['part_id' => $rmPart->id]);
+
+        $ok = $this->post('/spk', [
+            'spk_date' => '2026-06-17',
+            'dept' => 'Hotmelt, Binding, Packing',
+            'month' => 'Juni',
+            'shift' => '1',
+            'items' => [
+                [
+                    'part_id' => $fgPart->id,
+                    'po_no' => 'PO-FG',
+                    'target_qty' => 10,
+                ],
+            ],
+        ]);
+
+        $ok->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('spks', ['part_id' => $fgPart->id]);
+        $this->assertDatabaseMissing('spks', ['part_id' => $wipPart->id]);
+    }
+
     public function test_spk_list_create_and_delete_are_separated(): void
     {
         $buyer = Buyer::factory()->create();

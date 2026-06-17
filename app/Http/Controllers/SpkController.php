@@ -23,7 +23,7 @@ class SpkController extends Controller
     public function create()
     {
         $buyers = Buyer::orderBy('name')->get();
-        $parts  = Part::with('buyer')->orderBy('code')->get();
+        $parts  = Part::with('buyer')->where('classification', 'FG')->orderBy('code')->get();
         $sizes  = SizeVariant::orderBy('code')->get();
         return view('production.spk.create', compact('buyers', 'parts', 'sizes'));
     }
@@ -55,7 +55,10 @@ class SpkController extends Controller
             'items.*.po_no' => ['required', 'string', 'max:80'],
             'items.*.item' => ['nullable', 'string', 'max:120'],
             'items.*.style' => ['nullable', 'string', 'max:120'],
-            'items.*.part_id' => ['nullable', 'exists:parts,id'],
+            'items.*.part_id' => [
+                'nullable',
+                Rule::exists('parts', 'id')->where(fn ($query) => $query->where('classification', 'FG')),
+            ],
             'items.*.size_variant_id' => ['nullable', 'exists:size_variants,id'],
             'items.*.target_qty' => ['required', 'integer', 'min:1'],
             'items.*.remarks' => ['nullable', 'string', 'max:120'],
