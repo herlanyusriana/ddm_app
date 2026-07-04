@@ -1,6 +1,7 @@
 @php
     $labels = [
         'buyers' => 'Buyer Master',
+        'operators' => 'Operator Master',
         'parts' => 'Part Master',
         'sizes' => 'Size Master',
         'processes' => 'Process Master',
@@ -18,6 +19,8 @@
 @section('topbar-actions')
     @if($section === 'buyers')
         <a class="link-btn link-btn-primary" href="/masters/buyers/create">Tambah Buyer Baru</a>
+    @elseif($section === 'operators')
+        <a class="link-btn link-btn-primary" href="/masters/operators/create">Tambah Operator Baru</a>
     @elseif($section === 'parts')
         <a class="link-btn link-btn-secondary" href="/masters/parts/export">Export Excel</a>
         <a class="link-btn link-btn-secondary" href="/masters/parts/import">Import Excel</a>
@@ -102,6 +105,46 @@
                     </tr>
                 @empty
                     <tr><td colspan="3"><div class="master-empty"><strong>Belum ada buyer.</strong>Tambah buyer baru dari tombol kanan atas.</div></td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+@elseif($section === 'operators')
+    <section class="master-summary">
+        <div class="master-metric"><span>Total Operator</span><strong>{{ $operators->count() }}</strong></div>
+        <div class="master-metric"><span>Menu</span><strong>Operator</strong></div>
+        <div class="master-metric"><span>Data</span><strong>Kode</strong></div>
+        <div class="master-metric"><span>Input</span><strong>Manual</strong></div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Daftar Operator</h2>
+            <span class="badge badge-neutral">{{ $operators->count() }} data</span>
+        </div>
+        <div class="master-toolbar">
+            <div class="master-search"><input data-master-search placeholder="Cari kode atau nama operator..."></div>
+            <div class="master-count">Operator master</div>
+        </div>
+        <div class="master-table-wrap">
+            <table class="master-table">
+                <thead><tr><th>Kode Operator</th><th>Nama Operator</th><th class="master-actions-cell">Aksi</th></tr></thead>
+                <tbody data-master-body>
+                @forelse($operators as $operator)
+                    <tr data-master-row="{{ strtolower($operator->operator_code.' '.$operator->name) }}">
+                        <td><span class="master-code">{{ $operator->operator_code }}</span></td>
+                        <td><span class="master-primary">{{ $operator->name }}</span></td>
+                        <td class="master-actions-cell">
+                            <form class="master-actions" method="post" action="/masters/operators/{{ $operator->id }}" onsubmit="return confirm('Hapus operator {{ $operator->operator_code }}?')">
+                                @csrf
+                                @method('DELETE')
+                                <button class="btn btn-danger btn-sm" type="submit">Hapus</button>
+                            </form>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="3"><div class="master-empty"><strong>Belum ada operator.</strong>Tambah operator baru dari tombol kanan atas.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>

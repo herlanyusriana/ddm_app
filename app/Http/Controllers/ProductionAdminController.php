@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Buyer;
 use App\Models\BuyerPartSize;
+use App\Models\Operator;
 use App\Models\Part;
 use App\Models\Process;
 use App\Models\ProductionEntry;
@@ -96,6 +97,7 @@ class ProductionAdminController extends Controller
         return view('production.masters', [
             'section' => $section,
             'buyers' => Buyer::orderBy('name')->get(),
+            'operators' => Operator::orderBy('operator_code')->get(),
             'parts' => Part::with('buyer')->orderBy('code')->get(),
             'sizes' => SizeVariant::orderBy('code')->get(),
             'processes' => Process::orderBy('sort_order')->get(),
@@ -186,6 +188,11 @@ class ProductionAdminController extends Controller
         return view('production.buyer-create');
     }
 
+    public function createOperator(): View
+    {
+        return view('production.operator-create');
+    }
+
     public function createPart(): View
     {
         return view('production.part-create', ['buyers' => Buyer::orderBy('name')->get()]);
@@ -221,6 +228,23 @@ class ProductionAdminController extends Controller
         $buyer->delete();
 
         return redirect('/masters/buyers')->with('status', 'Buyer master terhapus.');
+    }
+
+    public function storeOperator(Request $request): RedirectResponse
+    {
+        Operator::create($request->validate([
+            'operator_code' => ['required', 'string', 'max:40', 'unique:operators,operator_code'],
+            'name' => ['required', 'string', 'max:120'],
+        ]));
+
+        return redirect('/masters/operators')->with('status', 'Operator master tersimpan.');
+    }
+
+    public function destroyOperator(Operator $operator): RedirectResponse
+    {
+        $operator->delete();
+
+        return redirect('/masters/operators')->with('status', 'Operator master terhapus.');
     }
 
     public function storePart(Request $request): RedirectResponse

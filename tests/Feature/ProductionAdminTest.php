@@ -11,6 +11,7 @@ use App\Models\Spk;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProductionAdminTest extends TestCase
@@ -89,6 +90,60 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('href="/masters/sizes"', false);
         $response->assertSee('href="/masters/processes"', false);
         $response->assertDontSee('Buyer Part Mapping');
+    }
+
+    public function test_operator_master_is_available_in_sidebar_and_has_separate_pages(): void
+    {
+        $sidebar = $this->get('/dashboard');
+
+        $sidebar->assertOk();
+        $sidebar->assertSee('Operator Master');
+        $sidebar->assertSee('href="/masters/operators"', false);
+
+        $list = $this->get('/masters/operators');
+
+        $list->assertOk();
+        $list->assertSee('Operator Master');
+        $list->assertSee('Tambah Operator Baru');
+        $list->assertDontSee('name="operator_code"', false);
+
+        $create = $this->get('/masters/operators/create');
+
+        $create->assertOk();
+        $create->assertSee('name="operator_code"', false);
+        $create->assertSee('name="name"', false);
+    }
+
+    public function test_operator_master_can_create_validate_and_delete_operator(): void
+    {
+        $create = $this->post('/masters/operators', [
+            'operator_code' => 'OP-001',
+            'name' => 'Siti Aminah',
+        ]);
+
+        $create->assertSessionHasNoErrors();
+        $create->assertRedirect('/masters/operators');
+        $this->assertDatabaseHas('operators', [
+            'operator_code' => 'OP-001',
+            'name' => 'Siti Aminah',
+        ]);
+
+        $list = $this->get('/masters/operators');
+        $list->assertOk();
+        $list->assertSee('OP-001');
+        $list->assertSee('Siti Aminah');
+
+        $duplicate = $this->post('/masters/operators', [
+            'operator_code' => 'OP-001',
+            'name' => 'Operator Lain',
+        ]);
+        $duplicate->assertSessionHasErrors('operator_code');
+
+        $operatorId = DB::table('operators')->where('operator_code', 'OP-001')->value('id');
+        $delete = $this->delete('/masters/operators/'.$operatorId);
+
+        $delete->assertRedirect('/masters/operators');
+        $this->assertDatabaseMissing('operators', ['id' => $operatorId]);
     }
 
     public function test_input_wip_sidebar_lists_only_wip_processes_in_sort_order(): void

@@ -18,12 +18,16 @@ Route::get('/dashboard', [ProductionAdminController::class, 'dashboard'])->name(
 // ── Master Data ──
 Route::get('/masters',                 [ProductionAdminController::class, 'masters'])->name('masters');
 Route::get('/masters/{section}',       [ProductionAdminController::class, 'masters'])
-    ->whereIn('section', ['buyers', 'parts', 'sizes', 'mappings', 'processes'])
+    ->whereIn('section', ['buyers', 'parts', 'sizes', 'mappings', 'processes', 'operators'])
     ->name('masters.section');
 
 Route::get('/masters/buyers/create',   [ProductionAdminController::class, 'createBuyer'])->name('buyers.create');
 Route::post('/masters/buyers',         [ProductionAdminController::class, 'storeBuyer'])->name('buyers.store');
 Route::delete('/masters/buyers/{buyer}', [ProductionAdminController::class, 'destroyBuyer'])->name('buyers.destroy');
+
+Route::get('/masters/operators/create', [ProductionAdminController::class, 'createOperator'])->name('operators.create');
+Route::post('/masters/operators', [ProductionAdminController::class, 'storeOperator'])->name('operators.store');
+Route::delete('/masters/operators/{operator}', [ProductionAdminController::class, 'destroyOperator'])->name('operators.destroy');
 
 Route::get('/masters/parts/create',    [ProductionAdminController::class, 'createPart'])->name('parts.create');
 Route::get('/masters/parts/export',    [ProductionAdminController::class, 'exportParts'])->name('parts.export');

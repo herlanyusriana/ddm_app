@@ -624,6 +624,9 @@
                 <a class="nav-link {{ request()->is('masters/buyers') || request()->is('masters/buyers/create') ? 'active' : '' }}" href="/masters/buyers">
                     <span class="icon">👤</span> Buyer Master
                 </a>
+                <a class="nav-link {{ request()->is('masters/operators*') ? 'active' : '' }}" href="/masters/operators">
+                    <span class="icon">🧑‍🏭</span> Operator Master
+                </a>
                 <a class="nav-link {{ request()->is('masters/parts*') ? 'active' : '' }}" href="/masters/parts">
                     <span class="icon">📦</span> Part Master
                 </a>
