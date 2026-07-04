@@ -129,12 +129,15 @@
         </div>
         <div class="master-table-wrap">
             <table class="master-table">
-                <thead><tr><th>Kode Operator</th><th>Nama Operator</th><th class="master-actions-cell">Aksi</th></tr></thead>
+                <thead><tr><th>No</th><th>Nama</th><th>QC Label</th><th>Group</th><th>Target Prod</th><th class="master-actions-cell">Aksi</th></tr></thead>
                 <tbody data-master-body>
                 @forelse($operators as $operator)
-                    <tr data-master-row="{{ strtolower($operator->operator_code.' '.$operator->name) }}">
+                    <tr data-master-row="{{ strtolower($operator->operator_code.' '.$operator->name.' '.$operator->qc_label.' '.$operator->leader_name) }}">
                         <td><span class="master-code">{{ $operator->operator_code }}</span></td>
                         <td><span class="master-primary">{{ $operator->name }}</span></td>
+                        <td>{{ $operator->qc_label ?? '—' }}</td>
+                        <td>{{ $operator->leader_name ?? '—' }}</td>
+                        <td class="td-num">{{ $operator->target_prod !== null ? number_format($operator->target_prod) : '—' }}</td>
                         <td class="master-actions-cell">
                             <form class="master-actions" method="post" action="/masters/operators/{{ $operator->id }}" onsubmit="return confirm('Hapus operator {{ $operator->operator_code }}?')">
                                 @csrf
@@ -144,7 +147,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="3"><div class="master-empty"><strong>Belum ada operator.</strong>Tambah operator baru dari tombol kanan atas.</div></td></tr>
+                    <tr><td colspan="6"><div class="master-empty"><strong>Belum ada operator.</strong>Tambah operator baru dari tombol kanan atas.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>

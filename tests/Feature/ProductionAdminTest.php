@@ -117,33 +117,80 @@ class ProductionAdminTest extends TestCase
     public function test_operator_master_can_create_validate_and_delete_operator(): void
     {
         $create = $this->post('/masters/operators', [
-            'operator_code' => 'OP-001',
+            'operator_code' => '001',
             'name' => 'Siti Aminah',
         ]);
 
         $create->assertSessionHasNoErrors();
         $create->assertRedirect('/masters/operators');
         $this->assertDatabaseHas('operators', [
-            'operator_code' => 'OP-001',
+            'operator_code' => '001',
             'name' => 'Siti Aminah',
         ]);
 
         $list = $this->get('/masters/operators');
         $list->assertOk();
-        $list->assertSee('OP-001');
+        $list->assertSee('001');
         $list->assertSee('Siti Aminah');
 
         $duplicate = $this->post('/masters/operators', [
-            'operator_code' => 'OP-001',
+            'operator_code' => '001',
             'name' => 'Operator Lain',
         ]);
         $duplicate->assertSessionHasErrors('operator_code');
 
-        $operatorId = DB::table('operators')->where('operator_code', 'OP-001')->value('id');
+        $operatorId = DB::table('operators')->where('operator_code', '001')->value('id');
         $delete = $this->delete('/masters/operators/'.$operatorId);
 
         $delete->assertRedirect('/masters/operators');
         $this->assertDatabaseMissing('operators', ['id' => $operatorId]);
+    }
+
+    public function test_operator_master_saves_and_displays_production_fields(): void
+    {
+        $response = $this->post('/masters/operators', [
+            'operator_code' => '0012',
+            'name' => 'Siti Aminah',
+            'qc_label' => '007',
+            'leader_name' => 'Budi',
+            'target_prod' => 250,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect('/masters/operators');
+        $this->assertDatabaseHas('operators', [
+            'operator_code' => '0012',
+            'name' => 'Siti Aminah',
+            'qc_label' => '007',
+            'leader_name' => 'Budi',
+            'target_prod' => 250,
+        ]);
+
+        $list = $this->get('/masters/operators');
+        $list->assertOk();
+        $list->assertSeeInOrder(['No', 'Nama', 'QC Label', 'Group', 'Target Prod']);
+        $list->assertSeeInOrder(['0012', 'Siti Aminah', '007', 'Budi', '250']);
+
+        $create = $this->get('/masters/operators/create');
+        $create->assertOk();
+        $create->assertSee('name="qc_label"', false);
+        $create->assertSee('name="leader_name"', false);
+        $create->assertSee('name="target_prod"', false);
+        $create->assertSee('operator-production-grid', false);
+    }
+
+    public function test_operator_production_fields_enforce_numeric_values(): void
+    {
+        $response = $this->post('/masters/operators', [
+            'operator_code' => 'OP-12',
+            'name' => 'Siti Aminah',
+            'qc_label' => 'QC-7',
+            'leader_name' => 'Budi',
+            'target_prod' => -1,
+        ]);
+
+        $response->assertSessionHasErrors(['operator_code', 'qc_label', 'target_prod']);
+        $this->assertDatabaseMissing('operators', ['name' => 'Siti Aminah']);
     }
 
     public function test_input_wip_sidebar_lists_only_wip_processes_in_sort_order(): void

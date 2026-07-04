@@ -233,8 +233,11 @@ class ProductionAdminController extends Controller
     public function storeOperator(Request $request): RedirectResponse
     {
         Operator::create($request->validate([
-            'operator_code' => ['required', 'string', 'max:40', 'unique:operators,operator_code'],
+            'operator_code' => ['required', 'string', 'max:40', 'regex:/^\d+$/', 'unique:operators,operator_code'],
             'name' => ['required', 'string', 'max:120'],
+            'qc_label' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
+            'leader_name' => ['nullable', 'string', 'max:120'],
+            'target_prod' => ['nullable', 'integer', 'min:0'],
         ]));
 
         return redirect('/masters/operators')->with('status', 'Operator master tersimpan.');

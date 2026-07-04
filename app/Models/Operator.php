@@ -9,5 +9,11 @@ class Operator extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['operator_code', 'name'];
+    protected $fillable = [
+        'operator_code',
+        'name',
+        'qc_label',
+        'leader_name',
+        'target_prod',
+    ];
 }
