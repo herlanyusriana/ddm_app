@@ -10,6 +10,7 @@ use App\Models\ProductionEntry;
 use App\Models\SizeVariant;
 use App\Models\Spk;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -30,8 +31,9 @@ class ProductionAdminController extends Controller
 
     private function renderInputPage(Request $request, string $type): View
     {
-        $date = $request->query('production_date', now()->toDateString());
-        $shift = $request->query('shift', '1');
+        $window = $this->productionWindow($request);
+        $date = $window['date'];
+        $shift = $window['shift'];
 
         $inputProcesses = Process::where('is_input_process', true)->orderBy('sort_order')->get();
         if ($type === 'proses') {
@@ -41,6 +43,10 @@ class ProductionAdminController extends Controller
             $inputProcesses = $inputProcesses->filter(fn ($p) => $this->processRequiresPart($p));
             $title = 'Input Hasil (FG/Packing)';
         }
+
+        $selectedProcess = $type === 'proses'
+            ? $inputProcesses->firstWhere('id', (int) $request->query('process_id')) ?? $inputProcesses->first()
+            : null;
 
         $spks = Spk::with(['buyer', 'part', 'sizeVariant'])
             ->whereIn('status', ['Pending', 'Material Prepared', 'In Production'])
@@ -63,6 +69,7 @@ class ProductionAdminController extends Controller
             'date' => $date,
             'shift' => $shift,
             'shiftOptions' => $this->shiftOptions(),
+            'isManualWindow' => $window['manual'],
             'buyers' => Buyer::orderBy('name')->get(),
             'parts' => Part::with('buyer')
                 ->when($type === 'hasil', fn ($query) => $query->where('classification', 'FG'))
@@ -71,6 +78,7 @@ class ProductionAdminController extends Controller
             'sizes' => SizeVariant::orderBy('code')->get(),
             'spks' => $spks,
             'inputProcesses' => $inputProcesses,
+            'selectedProcess' => $selectedProcess,
             'spkProcessTotals' => $spkProcessTotals,
             'entries' => ProductionEntry::with(['spk', 'buyer', 'part', 'sizeVariant', 'process'])
                 ->whereDate('production_date', $date)
@@ -97,14 +105,50 @@ class ProductionAdminController extends Controller
 
     public function dashboard(Request $request): View
     {
-        $date = $request->query('production_date', now()->toDateString());
-        $shift = $request->query('shift', '1');
+        $window = $this->productionWindow($request);
+        $date = $window['date'];
+        $shift = $window['shift'];
 
         return view('production.dashboard', [
             'date' => $date,
             'shift' => $shift,
+            'isManualWindow' => $window['manual'],
             'shiftOptions' => $this->shiftOptions(),
             'summaries' => $this->processSummaries($date, $shift),
+        ]);
+    }
+
+    public function dashboardSummary(Request $request): JsonResponse
+    {
+        $window = $this->productionWindow($request);
+        $summaries = $this->processSummaries($window['date'], $window['shift']);
+        $goodQty = (int) $summaries->sum('good_qty');
+        $rejectQty = (int) $summaries->sum('ng_qty');
+
+        return response()->json([
+            'date' => $window['date'],
+            'shift' => $window['shift'],
+            'totals' => [
+                'total_qty' => $goodQty + $rejectQty,
+                'good_qty' => $goodQty,
+                'reject_qty' => $rejectQty,
+                'active_processes' => $summaries->where('total_qty', '>', 0)->count(),
+                'process_count' => $summaries->count(),
+            ],
+            'processes' => $summaries->map(function (array $summary): array {
+                $totalQty = max(0, (int) $summary['total_qty']);
+                $goodQty = max(0, (int) $summary['good_qty']);
+
+                return [
+                    'id' => $summary['process']->id,
+                    'name' => $summary['process']->name,
+                    'good_qty' => $goodQty,
+                    'reject_qty' => max(0, (int) $summary['ng_qty']),
+                    'total_qty' => $totalQty,
+                    'good_rate' => $totalQty > 0 ? (int) round($goodQty / $totalQty * 100) : 0,
+                ];
+            })->values(),
+            'updated_at' => now('Asia/Jakarta')->toIso8601String(),
         ]);
     }
 
@@ -368,6 +412,15 @@ class ProductionAdminController extends Controller
 
     public function storeProductionEntry(Request $request): RedirectResponse
     {
+        $automaticWindow = $request->boolean('automatic_window');
+        if ($automaticWindow) {
+            $window = $this->productionWindow(new Request);
+            $request->merge([
+                'production_date' => $window['date'],
+                'shift' => $window['shift'],
+            ]);
+        }
+
         $process = Process::where('is_input_process', true)->find($request->input('process_id'));
         $requiresPart = $process ? $this->processRequiresPart($process) : false;
         $spk = Spk::find($request->input('spk_id'));
@@ -437,6 +490,10 @@ class ProductionAdminController extends Controller
         $this->syncSpkStatus($entry->spk);
 
         $redirectPath = $requiresPart ? '/input-hasil' : '/input-proses';
+
+        if ($automaticWindow) {
+            return redirect($redirectPath)->with('status', 'Input produksi tersimpan.');
+        }
 
         return redirect($redirectPath.'?production_date='.$validated['production_date'].'&shift='.$validated['shift'])
             ->with('status', 'Input produksi tersimpan.');
@@ -891,6 +948,34 @@ class ProductionAdminController extends Controller
             '1' => ['label' => 'Shift 1', 'time' => '08:00-16:00', 'greeting' => 'Selamat sore'],
             '2' => ['label' => 'Shift 2', 'time' => '16:00-24:00', 'greeting' => 'Selamat malam'],
             '3' => ['label' => 'Shift 3', 'time' => '00:00-08:00', 'greeting' => 'Selamat pagi'],
+        ];
+    }
+
+    private function productionWindow(Request $request): array
+    {
+        if ($request->filled('production_date') && array_key_exists((string) $request->query('shift'), $this->shiftOptions())) {
+            return [
+                'date' => (string) $request->query('production_date'),
+                'shift' => (string) $request->query('shift'),
+                'manual' => true,
+            ];
+        }
+
+        $now = now('Asia/Jakarta');
+        $hour = (int) $now->format('G');
+
+        if ($hour < 8) {
+            return [
+                'date' => $now->copy()->subDay()->toDateString(),
+                'shift' => '3',
+                'manual' => false,
+            ];
+        }
+
+        return [
+            'date' => $now->toDateString(),
+            'shift' => $hour < 16 ? '1' : '2',
+            'manual' => false,
         ];
     }
 }

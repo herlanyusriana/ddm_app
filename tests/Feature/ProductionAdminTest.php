@@ -8,6 +8,7 @@ use App\Models\Process;
 use App\Models\ProductionEntry;
 use App\Models\SizeVariant;
 use App\Models\Spk;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
@@ -88,6 +89,76 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('href="/masters/sizes"', false);
         $response->assertSee('href="/masters/processes"', false);
         $response->assertDontSee('Buyer Part Mapping');
+    }
+
+    public function test_input_wip_sidebar_lists_only_wip_processes_in_sort_order(): void
+    {
+        $sewing = Process::factory()->create([
+            'name' => 'Sewing',
+            'is_input_process' => true,
+            'sort_order' => 30,
+        ]);
+        $cutting = Process::factory()->create([
+            'name' => 'Cutting',
+            'is_input_process' => true,
+            'sort_order' => 10,
+        ]);
+        Process::factory()->create([
+            'name' => 'Packing',
+            'is_input_process' => true,
+            'is_fg_process' => true,
+            'sort_order' => 50,
+        ]);
+
+        $response = $this->get('/dashboard');
+
+        $response->assertOk();
+        $response->assertSeeInOrder(['Input Proses (WIP)', 'Cutting', 'Sewing', 'Input Hasil (FG)']);
+        $response->assertSee('href="/input-proses?process_id='.$cutting->id.'"', false);
+        $response->assertSee('href="/input-proses?process_id='.$sewing->id.'"', false);
+        $response->assertDontSee('href="/input-proses?process_id=3"', false);
+    }
+
+    public function test_input_wip_uses_sidebar_process_selection_and_falls_back_safely(): void
+    {
+        $cutting = Process::factory()->create([
+            'name' => 'Cutting',
+            'is_input_process' => true,
+            'sort_order' => 10,
+        ]);
+        $sewing = Process::factory()->create([
+            'name' => 'Sewing',
+            'is_input_process' => true,
+            'sort_order' => 30,
+        ]);
+        Process::factory()->create([
+            'name' => 'Packing',
+            'is_input_process' => true,
+            'is_fg_process' => true,
+            'sort_order' => 50,
+        ]);
+
+        $selectedPage = $this->get('/input-proses?process_id='.$sewing->id.'&production_date=2026-07-04&shift=2');
+
+        $selectedPage->assertOk();
+        $selectedPage->assertSee('name="process_id" value="'.$sewing->id.'"', false);
+        $selectedPage->assertSee('Proses aktif');
+        $selectedPage->assertSee('Sewing');
+        $selectedPage->assertSee(
+            'href="/input-proses?process_id='.$cutting->id.'&amp;production_date=2026-07-04&amp;shift=2"',
+            false
+        );
+        $selectedPage->assertDontSee('type="radio" name="process_id"', false);
+
+        $fallbackPage = $this->get('/input-proses?process_id=999999');
+
+        $fallbackPage->assertOk();
+        $fallbackPage->assertSee('name="process_id" value="'.$cutting->id.'"', false);
+
+        $fgPage = $this->get('/input-hasil');
+
+        $fgPage->assertOk();
+        $fgPage->assertSee('type="radio" name="process_id"', false);
     }
 
     public function test_master_data_has_its_own_page(): void
@@ -395,6 +466,134 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('Packing');
         $response->assertDontSee('Tambah Buyer');
         $response->assertDontSee('<section class="topbar">', false);
+    }
+
+    public function test_pages_automatically_use_the_active_jakarta_production_window(): void
+    {
+        Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+
+        $windows = [
+            ['2026-07-04 10:00:00', '2026-07-04', '1'],
+            ['2026-07-04 18:00:00', '2026-07-04', '2'],
+            ['2026-07-05 01:00:00', '2026-07-04', '3'],
+        ];
+
+        foreach ($windows as [$now, $expectedDate, $expectedShift]) {
+            CarbonImmutable::setTestNow(CarbonImmutable::parse($now, 'Asia/Jakarta'));
+
+            foreach (['/dashboard', '/input-proses', '/input-hasil'] as $path) {
+                $response = $this->get($path);
+
+                $response->assertOk();
+                $response->assertSee('value="'.$expectedDate.'"', false);
+                $response->assertSee(
+                    'value="'.$expectedShift.'" selected',
+                    false
+                );
+            }
+        }
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function test_manual_date_and_shift_override_the_active_production_window(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-05 01:00:00', 'Asia/Jakarta'));
+
+        $response = $this->get('/dashboard?production_date=2026-06-08&shift=2');
+
+        $response->assertOk();
+        $response->assertSee('value="2026-06-08"', false);
+        $response->assertSee('value="2" selected', false);
+        $response->assertSee('Kembali ke shift aktif');
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function test_automatic_input_uses_the_current_window_at_submission_time(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-05 01:00:00', 'Asia/Jakarta'));
+        $spk = Spk::factory()->create(['target_qty' => 100]);
+        $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+
+        $page = $this->get('/input-proses');
+
+        $page->assertOk();
+        $page->assertSee('name="automatic_window" value="1"', false);
+
+        $response = $this->post('/production-entries', [
+            'automatic_window' => '1',
+            'spk_id' => $spk->id,
+            'production_date' => '2026-07-03',
+            'shift' => '1',
+            'process_id' => $process->id,
+            'good_qty' => 5,
+            'reject_qty' => 0,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect('/input-proses');
+        $this->assertDatabaseHas('production_entries', [
+            'production_date' => '2026-07-04 00:00:00',
+            'shift' => '3',
+            'good_qty' => 5,
+        ]);
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function test_dashboard_summary_api_returns_good_and_reject_totals(): void
+    {
+        $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-04',
+            'shift' => '2',
+            'process_id' => $sewing->id,
+            'good_qty' => 12,
+            'ng_qty' => 3,
+        ]);
+
+        $response = $this->getJson('/api/dashboard-summary?production_date=2026-07-04&shift=2');
+
+        $response->assertOk();
+        $response->assertJsonPath('date', '2026-07-04');
+        $response->assertJsonPath('shift', '2');
+        $response->assertJsonPath('totals.total_qty', 15);
+        $response->assertJsonPath('totals.good_qty', 12);
+        $response->assertJsonPath('totals.reject_qty', 3);
+        $response->assertJsonPath('processes.0.name', 'Sewing');
+        $response->assertJsonPath('processes.0.good_rate', 80);
+    }
+
+    public function test_dashboard_contains_realtime_polling_targets(): void
+    {
+        $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+
+        $response = $this->get('/dashboard?production_date=2026-07-04&shift=1');
+
+        $response->assertOk();
+        $response->assertSee('data-realtime-dashboard', false);
+        $response->assertSee('data-summary-url="/api/dashboard-summary?production_date=2026-07-04&amp;shift=1"', false);
+        $response->assertSee('data-dashboard-total', false);
+        $response->assertSee('data-dashboard-good', false);
+        $response->assertSee('data-dashboard-reject', false);
+        $response->assertSee('data-process-id="'.$sewing->id.'"', false);
+        $response->assertSee('5000');
+        $response->assertSee('visibilitychange');
+    }
+
+    public function test_automatic_dashboard_polling_keeps_following_the_active_shift(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-04 15:59:00', 'Asia/Jakarta'));
+
+        $response = $this->get('/dashboard');
+
+        $response->assertOk();
+        $response->assertSee('data-summary-url="/api/dashboard-summary"', false);
+        $response->assertSee('input[name="production_date"]', false);
+        $response->assertSee('select[name="shift"]', false);
+
+        CarbonImmutable::setTestNow();
     }
 
     public function test_warehouse_page_uses_preparation_workflow_layout(): void

@@ -2,10 +2,13 @@
 
 @section('topbar-actions')
     <form class="filter-bar" method="get" action="" style="margin:0;border:0;background:transparent;padding:0">
+        @if($pageType === 'proses' && $selectedProcess)
+            <input type="hidden" name="process_id" value="{{ $selectedProcess->id }}">
+        @endif
         <input type="date" name="production_date" value="{{ $date }}" style="min-height:36px;font-size:13px">
         <select name="shift" style="min-height:36px;font-size:13px">
             @foreach($shiftOptions as $key => $opt)
-                <option value="{{ $key }}" @selected($shift === $key)>{{ $opt['label'] }}</option>
+                <option value="{{ $key }}" @selected((string) $shift === (string) $key)>{{ $opt['label'] }}</option>
             @endforeach
         </select>
         <button class="btn btn-secondary btn-sm" type="submit">Filter</button>
@@ -68,8 +71,17 @@
             <span class="badge badge-neutral">{{ date('d M Y', strtotime($date)) }} · Shift {{ $shift }}</span>
         </div>
         <div class="panel-body">
+            @if($pageType === 'proses' && ! $selectedProcess)
+                <div class="empty-state">
+                    <div class="empty-icon">⚙️</div>
+                    <p>Belum ada proses WIP yang dapat dipilih.</p>
+                </div>
+            @else
             <form class="form-grid" method="post" action="/production-entries">
                 @csrf
+                @if(! $isManualWindow)
+                    <input type="hidden" name="automatic_window" value="1">
+                @endif
                 <input type="hidden" name="production_date" value="{{ $date }}">
                 <input type="hidden" name="shift" value="{{ $shift }}">
 
@@ -129,17 +141,25 @@
                 <div class="divider"></div>
                 @endif
 
-                <div>
-                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Pilih Proses</div>
-                    <div class="processes" style="grid-template-columns:repeat(2,1fr)">
-                        @foreach($inputProcesses as $process)
-                            <label class="process-label">
-                                <input type="radio" name="process_id" value="{{ $process->id }}" required data-process-name="{{ $process->name }}">
-                                {{ $process->name }}
-                            </label>
-                        @endforeach
+                @if($pageType === 'proses')
+                    <input type="hidden" name="process_id" value="{{ $selectedProcess->id }}">
+                    <div class="field">
+                        <label>Proses aktif</label>
+                        <div class="readonly-pill">{{ $selectedProcess->name }}</div>
                     </div>
-                </div>
+                @else
+                    <div>
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Pilih Proses</div>
+                        <div class="processes" style="grid-template-columns:repeat(2,1fr)">
+                            @foreach($inputProcesses as $process)
+                                <label class="process-label">
+                                    <input type="radio" name="process_id" value="{{ $process->id }}" required data-process-name="{{ $process->name }}">
+                                    {{ $process->name }}
+                                </label>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
                 <div>
                     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
@@ -162,6 +182,7 @@
 
                 <button class="btn btn-primary btn-full btn-lg" type="submit">Simpan Input Produksi</button>
             </form>
+            @endif
         </div>
     </div>
 
@@ -279,7 +300,7 @@
 
     function updateSpkTargetInfo() {
         const spkSelect = document.querySelector('select[name="spk_id"]');
-        const processInput = document.querySelector('input[name="process_id"]:checked');
+        const processInput = document.querySelector('input[name="process_id"]:checked, input[type="hidden"][name="process_id"]');
         const targetInfo = document.querySelector('[data-spk-target-info]');
         const warning = document.querySelector('[data-spk-warning]');
         const goodInput = Number(document.querySelector('input[name="good_qty"]').value || 0);

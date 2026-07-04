@@ -61,4 +61,6 @@ Route::get('/reports/fg/print', [ProductionAdminController::class, 'fgReportPrin
 // ── API ──
 Route::get('/api/masters',              [ProductionAdminController::class, 'apiMasters']);
 Route::post('/api/production-entries',  [ProductionAdminController::class, 'apiProductionEntries']);
+Route::get('/api/dashboard-summary',    [ProductionAdminController::class, 'dashboardSummary'])
+    ->name('production.dashboard.summary');
 Route::get('/api/reports/fg',           [ProductionAdminController::class, 'apiFgReport']);

@@ -5,10 +5,13 @@
         <input type="date" name="production_date" value="{{ $date }}" style="min-height:36px;font-size:13px">
         <select name="shift" style="min-height:36px;font-size:13px">
             @foreach($shiftOptions as $key => $option)
-                <option value="{{ $key }}" @selected($shift === $key)>{{ $option['label'] }}</option>
+                <option value="{{ $key }}" @selected((string) $shift === (string) $key)>{{ $option['label'] }}</option>
             @endforeach
         </select>
         <button class="btn btn-secondary btn-sm" type="submit">Filter</button>
+        @if($isManualWindow)
+            <a class="btn btn-ghost btn-sm" href="/dashboard">Kembali ke shift aktif</a>
+        @endif
     </form>
 @endsection
 
@@ -167,26 +170,35 @@
     }
 </style>
 
+<div
+    data-realtime-dashboard
+    data-summary-url="{{ route('production.dashboard.summary', $isManualWindow ? ['production_date' => $date, 'shift' => $shift] : [], false) }}"
+>
+<div class="flex gap-2" style="justify-content:flex-end;margin-bottom:10px">
+    <span class="badge badge-success" data-realtime-status>● Realtime aktif</span>
+    <span class="text-muted text-sm" data-realtime-updated>Menunggu pembaruan...</span>
+</div>
+
 <section class="dashboard-stats">
     <article class="dashboard-stat">
         <span>Total Produksi</span>
-        <strong>{{ number_format($totalQty) }}</strong>
+        <strong data-dashboard-total>{{ number_format($totalQty) }}</strong>
         <small>Good + Reject</small>
     </article>
     <article class="dashboard-stat">
         <span>Good</span>
-        <strong style="color:var(--success)">{{ number_format($totalGood) }}</strong>
+        <strong style="color:var(--success)" data-dashboard-good>{{ number_format($totalGood) }}</strong>
         <small>Unit OK</small>
     </article>
     <article class="dashboard-stat">
         <span>Reject</span>
-        <strong style="color:var(--danger)">{{ number_format($totalReject) }}</strong>
+        <strong style="color:var(--danger)" data-dashboard-reject>{{ number_format($totalReject) }}</strong>
         <small>Masuk hutang rework</small>
     </article>
     <article class="dashboard-stat">
         <span>Proses Aktif</span>
-        <strong>{{ number_format($activeProcesses) }}</strong>
-        <small>Dari {{ number_format($summaries->count()) }} proses</small>
+        <strong data-dashboard-active>{{ number_format($activeProcesses) }}</strong>
+        <small>Dari <span data-dashboard-process-count>{{ number_format($summaries->count()) }}</span> proses</small>
     </article>
 </section>
 
@@ -198,23 +210,23 @@
             $ng = max(0, (int) $summary['ng_qty']);
             $goodRate = $total > 0 ? round($good / $total * 100) : 0;
         @endphp
-        <article class="process-card">
+        <article class="process-card" data-process-id="{{ $summary['process']->id }}">
             <div class="process-card-head">
                 <h2>{{ $summary['process']->name }}</h2>
-                <div class="process-total">{{ number_format($total) }}</div>
+                <div class="process-total" data-process-total>{{ number_format($total) }}</div>
             </div>
             <div class="process-breakdown">
                 <div>
                     <span>Good</span>
-                    <strong style="color:var(--success)">{{ number_format($good) }}</strong>
+                    <strong style="color:var(--success)" data-process-good>{{ number_format($good) }}</strong>
                 </div>
                 <div>
                     <span>Reject</span>
-                    <strong style="color:var(--danger)">{{ number_format($ng) }}</strong>
+                    <strong style="color:var(--danger)" data-process-reject>{{ number_format($ng) }}</strong>
                 </div>
             </div>
-            <div class="process-meter" aria-label="Good rate {{ $goodRate }}%">
-                <div class="process-meter-fill" style="width:{{ $goodRate }}%"></div>
+            <div class="process-meter" aria-label="Good rate {{ $goodRate }}%" data-process-meter>
+                <div class="process-meter-fill" style="width:{{ $goodRate }}%" data-process-meter-fill></div>
             </div>
         </article>
     @empty
@@ -225,4 +237,94 @@
         </div>
     @endforelse
 </section>
+</div>
+
+<script>
+    (() => {
+        const dashboard = document.querySelector('[data-realtime-dashboard]');
+        const intervalMs = 5000;
+        let timer = null;
+
+        if (!dashboard) {
+            return;
+        }
+
+        const formatNumber = (value) => new Intl.NumberFormat('id-ID').format(Number(value || 0));
+        const status = dashboard.querySelector('[data-realtime-status]');
+        const updated = dashboard.querySelector('[data-realtime-updated]');
+
+        const render = (payload) => {
+            const dateInput = document.querySelector('input[name="production_date"]');
+            const shiftSelect = document.querySelector('select[name="shift"]');
+            if (dateInput) {
+                dateInput.value = payload.date;
+            }
+            if (shiftSelect) {
+                shiftSelect.value = payload.shift;
+            }
+
+            dashboard.querySelector('[data-dashboard-total]').textContent = formatNumber(payload.totals.total_qty);
+            dashboard.querySelector('[data-dashboard-good]').textContent = formatNumber(payload.totals.good_qty);
+            dashboard.querySelector('[data-dashboard-reject]').textContent = formatNumber(payload.totals.reject_qty);
+            dashboard.querySelector('[data-dashboard-active]').textContent = formatNumber(payload.totals.active_processes);
+            dashboard.querySelector('[data-dashboard-process-count]').textContent = formatNumber(payload.totals.process_count);
+
+            payload.processes.forEach((process) => {
+                const card = dashboard.querySelector(`[data-process-id="${process.id}"]`);
+                if (!card) {
+                    return;
+                }
+
+                card.querySelector('[data-process-total]').textContent = formatNumber(process.total_qty);
+                card.querySelector('[data-process-good]').textContent = formatNumber(process.good_qty);
+                card.querySelector('[data-process-reject]').textContent = formatNumber(process.reject_qty);
+                card.querySelector('[data-process-meter]').setAttribute('aria-label', `Good rate ${process.good_rate}%`);
+                card.querySelector('[data-process-meter-fill]').style.width = `${process.good_rate}%`;
+            });
+
+            status.className = 'badge badge-success';
+            status.textContent = '● Realtime aktif';
+            updated.textContent = `Diperbarui ${new Date(payload.updated_at).toLocaleTimeString('id-ID')}`;
+        };
+
+        const refresh = async () => {
+            if (document.hidden) {
+                return;
+            }
+
+            try {
+                const response = await fetch(dashboard.dataset.summaryUrl, {
+                    headers: { Accept: 'application/json' },
+                    cache: 'no-store',
+                });
+
+                if (!response.ok) {
+                    throw new Error('Dashboard refresh failed');
+                }
+
+                render(await response.json());
+            } catch (error) {
+                status.className = 'badge badge-danger';
+                status.textContent = '● Realtime terputus';
+            }
+        };
+
+        const startPolling = () => {
+            clearInterval(timer);
+            refresh();
+            timer = setInterval(refresh, intervalMs);
+        };
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearInterval(timer);
+                return;
+            }
+
+            startPolling();
+        });
+
+        startPolling();
+    })();
+</script>
 @endsection

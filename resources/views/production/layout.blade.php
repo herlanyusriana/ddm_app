@@ -163,6 +163,26 @@
 
         .nav-link.active .badge { background: rgba(255,255,255,.25); }
 
+        .nav-submenu {
+            border-left: 1px solid #334155;
+            display: grid;
+            gap: 2px;
+            margin: 3px 0 6px 22px;
+            padding-left: 10px;
+        }
+
+        .nav-sublink {
+            border-radius: 7px;
+            color: var(--sidebar-muted);
+            font-size: 12.5px;
+            font-weight: 600;
+            padding: 7px 10px;
+            transition: background .15s, color .15s;
+        }
+
+        .nav-sublink:hover { background: var(--sidebar-hover); color: #fff; }
+        .nav-sublink.active { background: rgba(37,99,235,.22); color: #bfdbfe; font-weight: 700; }
+
         .nav-divider { height: 1px; background: #1e293b; margin: 8px 0; }
 
         /* ── MAIN ── */
@@ -560,6 +580,26 @@
                 <a class="nav-link {{ request()->is('input-proses') ? 'active' : '' }}" href="/input-proses">
                     <span class="icon">⚙️</span> Input Proses (WIP)
                 </a>
+                @if($sidebarWipProcesses->isNotEmpty())
+                    <div class="nav-submenu">
+                        @foreach($sidebarWipProcesses as $sidebarProcess)
+                            @php
+                                $processQuery = array_filter([
+                                    'process_id' => $sidebarProcess->id,
+                                    'production_date' => request()->query('production_date'),
+                                    'shift' => request()->query('shift'),
+                                ], fn ($value) => $value !== null && $value !== '');
+                                $isActiveProcess = request()->is('input-proses')
+                                    && isset($selectedProcess)
+                                    && $selectedProcess?->id === $sidebarProcess->id;
+                            @endphp
+                            <a
+                                class="nav-sublink {{ $isActiveProcess ? 'active' : '' }}"
+                                href="{{ route('input.proses', $processQuery, false) }}"
+                            >{{ $sidebarProcess->name }}</a>
+                        @endforeach
+                    </div>
+                @endif
                 <a class="nav-link {{ request()->is('input-hasil') ? 'active' : '' }}" href="/input-hasil">
                     <span class="icon">✅</span> Input Hasil (FG)
                 </a>
@@ -662,7 +702,7 @@
     document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
         button.addEventListener('click', () => document.body.classList.toggle('menu-open'));
     });
-    document.querySelectorAll('[data-menu-close], .sidebar .nav-link').forEach((target) => {
+    document.querySelectorAll('[data-menu-close], .sidebar .nav-link, .sidebar .nav-sublink').forEach((target) => {
         target.addEventListener('click', () => document.body.classList.remove('menu-open'));
     });
 

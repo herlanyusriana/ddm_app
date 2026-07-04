@@ -19,7 +19,7 @@ Move the WIP process selector from the production input form into the main sideb
 - A process is accepted only if it belongs to the WIP process collection available to the page.
 - When no valid process is selected, the first available WIP process is used as the default.
 - The visible radio-button section titled **Pilih Proses** is removed from the WIP form.
-- The form submits the selected WIP process through a hidden `process_id` input.
+- The form submits the selected WIP process through a hidden `process_id` input.\
 - The FG input page retains its existing process selector because this change is scoped to Input WIP.
 - The selected process name is shown in the WIP form so the operator can verify the active context before saving.
 
@@ -39,3 +39,6 @@ If no WIP processes are configured, the submenu contains no process links and th
 - Confirm invalid `process_id` values safely fall back.
 - Confirm FG input and Rework navigation continue to behave as before.
 - Confirm the sidebar remains usable on desktop and mobile.
+
+
+muhammad herlan yusriana
