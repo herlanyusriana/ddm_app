@@ -849,7 +849,7 @@ class ProductionAdminTest extends TestCase
         $response->assertJsonValidationErrors('good_qty');
     }
 
-    public function test_input_page_marks_part_selector_for_packing_only(): void
+    public function test_input_pages_separate_wip_and_packing_processes(): void
     {
         Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
         Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
@@ -862,7 +862,9 @@ class ProductionAdminTest extends TestCase
         $processPage->assertSee($spk->spk_no);
         $processPage->assertSee('Sewing');
         $processPage->assertDontSee('Packing');
-        $processPage->assertDontSee('name="part_id"', false);
+        $processPage->assertSee('name="buyer_id"', false);
+        $processPage->assertSee('name="part_id"', false);
+        $processPage->assertSee('name="size_variant_id"', false);
 
         $resultPage = $this->get('/input-hasil');
 
@@ -871,6 +873,104 @@ class ProductionAdminTest extends TestCase
         $resultPage->assertSee('name="buyer_id"', false);
         $resultPage->assertSee('name="part_id"', false);
         $resultPage->assertSee('name="size_variant_id"', false);
+    }
+
+    public function test_wip_and_fg_forms_allow_custom_input_without_spk(): void
+    {
+        Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
+        Process::factory()->create(['name' => 'Packing', 'is_input_process' => true, 'is_fg_process' => true, 'sort_order' => 50]);
+        Buyer::factory()->create(['code' => 'AMZ', 'name' => 'Amazon']);
+        Part::factory()->create(['code' => 'ITEM-001', 'name' => 'Pocket Spring']);
+        SizeVariant::factory()->create(['code' => '12Q']);
+
+        foreach (['/input-proses', '/input-hasil'] as $path) {
+            $page = $this->get($path);
+
+            $page->assertOk();
+            $page->assertSee('Custom / Tanpa SPK');
+            $page->assertSee('name="spk_id"', false);
+            $page->assertDontSee('name="spk_id" required', false);
+            $page->assertSee('name="buyer_id"', false);
+            $page->assertSee('name="part_id"', false);
+            $page->assertSee('name="size_variant_id"', false);
+            $page->assertSee('data-custom-production-fields', false);
+            $page->assertSee('ITEM-001');
+            $page->assertSee('12Q');
+        }
+    }
+
+    public function test_custom_wip_entry_persists_master_data_without_spk(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $part = Part::factory()->create(['buyer_id' => $buyer->id, 'code' => 'ITEM-001']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+
+        $response = $this->post('/production-entries', [
+            'production_date' => '2026-07-04',
+            'shift' => '1',
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $process->id,
+            'good_qty' => 20,
+            'reject_qty' => 2,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect('/input-proses?production_date=2026-07-04&shift=1');
+        $this->assertDatabaseHas('production_entries', [
+            'spk_id' => null,
+            'buyer_id' => $buyer->id,
+            'part_id' => $part->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $process->id,
+            'good_qty' => 20,
+            'ng_qty' => 2,
+        ]);
+
+        $history = $this->get('/input-proses?production_date=2026-07-04&shift=1');
+        $history->assertOk();
+        $history->assertSee('Custom');
+        $history->assertSee('ITEM-001');
+        $history->assertSee('12Q');
+    }
+
+    public function test_custom_fg_entry_requires_master_data_and_matching_buyer_item(): void
+    {
+        $amazon = Buyer::factory()->create(['code' => 'AMZ']);
+        $wayfair = Buyer::factory()->create(['code' => 'WF']);
+        $wrongPart = Part::factory()->create([
+            'buyer_id' => $wayfair->id,
+            'classification' => 'FG',
+        ]);
+        $size = SizeVariant::factory()->create();
+        $packing = Process::factory()->create([
+            'name' => 'Packing',
+            'is_input_process' => true,
+            'is_fg_process' => true,
+        ]);
+
+        $missing = $this->post('/production-entries', [
+            'production_date' => '2026-07-04',
+            'shift' => '1',
+            'process_id' => $packing->id,
+            'good_qty' => 5,
+            'reject_qty' => 0,
+        ]);
+        $missing->assertSessionHasErrors(['buyer_id', 'part_id', 'size_variant_id']);
+
+        $mismatch = $this->post('/production-entries', [
+            'production_date' => '2026-07-04',
+            'shift' => '1',
+            'buyer_id' => $amazon->id,
+            'part_id' => $wrongPart->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $packing->id,
+            'good_qty' => 5,
+            'reject_qty' => 0,
+        ]);
+        $mismatch->assertSessionHasErrors('part_id');
     }
 
     public function test_production_input_uses_good_and_reject_only(): void
@@ -938,7 +1038,7 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('data-part-id="'.$genericPart->id.'"', false);
         $response->assertSee('data-part-buyer-id=""', false);
         $response->assertSee('data-part-id="'.$wayfairPart->id.'"', false);
-        $response->assertSee('filterFgPartsForSpk', false);
+        $response->assertSee('syncProductionMasterFields', false);
     }
 
     public function test_fg_input_rejects_part_from_different_buyer(): void

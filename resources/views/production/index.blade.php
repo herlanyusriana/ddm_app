@@ -87,8 +87,8 @@
 
                 <div class="field">
                     <label>SPK / Lot Produksi</label>
-                    <select name="spk_id" required>
-                        <option value="">— Pilih SPK —</option>
+                    <select name="spk_id">
+                        <option value="">Custom / Tanpa SPK</option>
                         @foreach($spks as $spk)
                             <option
                                 value="{{ $spk->id }}"
@@ -102,6 +102,7 @@
                             </option>
                         @endforeach
                     </select>
+                    <div class="field-hint">Kosongkan SPK untuk input menggunakan Buyer, Item, dan Size dari Master Data.</div>
                 </div>
                 <div class="field">
                     <label>Target Lot & Sisa Kapasitas</label>
@@ -109,16 +110,20 @@
                     <div class="field-hint" data-spk-warning style="display:none;"></div>
                 </div>
 
-                @if($pageType === 'hasil')
-                <div class="field">
-                    <label>Buyer</label>
-                    <input type="hidden" name="buyer_id" data-fg-buyer-input>
-                    <div class="readonly-pill" data-fg-buyer-label>Pilih SPK dulu</div>
-                </div>
-                <div class="field">
-                    <label>Produk FG</label>
-                    <select name="part_id" required data-fg-part-select disabled>
-                        <option value="">— Pilih SPK dulu —</option>
+                <div data-custom-production-fields data-page-type="{{ $pageType }}" class="form-grid">
+                    <div class="field">
+                        <label>Kode Buyer</label>
+                        <select name="buyer_id" required data-custom-buyer-select>
+                            <option value="">— Pilih Buyer —</option>
+                            @foreach($buyers as $buyer)
+                                <option value="{{ $buyer->id }}">{{ $buyer->code }} · {{ $buyer->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Item {{ $pageType === 'hasil' ? 'FG' : '' }}</label>
+                        <select name="part_id" required data-custom-part-select>
+                            <option value="">— Pilih Item —</option>
                         @foreach($parts as $p)
                             <option
                                 value="{{ $p->id }}"
@@ -128,18 +133,18 @@
                                 {{ $p->code }} · {{ $p->name }}
                             </option>
                         @endforeach
-                    </select>
-                    <div class="field-hint" data-fg-part-hint>Produk akan tampil sesuai buyer SPK.</div>
-                </div>
-                <div class="field">
-                    <label>Size</label>
-                    <select name="size_variant_id" required data-fg-size-select>
-                        <option value="">— Pilih Size —</option>
-                        @foreach($sizes as $s)<option value="{{ $s->id }}">{{ $s->code }}</option>@endforeach
-                    </select>
+                        </select>
+                        <div class="field-hint" data-custom-part-hint>Item tampil sesuai buyer yang dipilih.</div>
+                    </div>
+                    <div class="field">
+                        <label>Kode Size</label>
+                        <select name="size_variant_id" required data-custom-size-select>
+                            <option value="">— Pilih Size —</option>
+                            @foreach($sizes as $s)<option value="{{ $s->id }}">{{ $s->code }}</option>@endforeach
+                        </select>
+                    </div>
                 </div>
                 <div class="divider"></div>
-                @endif
 
                 @if($pageType === 'proses')
                     <input type="hidden" name="process_id" value="{{ $selectedProcess->id }}">
@@ -199,7 +204,7 @@
                         <tr>
                             <th>SPK</th>
                             <th>Proses</th>
-                            @if($pageType === 'hasil')<th>Buyer</th><th>Part</th><th>Size</th>@endif
+                            <th>Buyer</th><th>Item</th><th>Size</th>
                             <th class="td-num">Good</th>
                             <th class="td-num">Reject</th>
                         </tr>
@@ -207,18 +212,22 @@
                     <tbody>
                     @forelse($entries as $entry)
                         <tr>
-                            <td><a class="master-code" href="/spk/{{ $entry->spk_id }}">{{ $entry->spk?->spk_no ?? '—' }}</a></td>
+                            <td>
+                                @if($entry->spk_id)
+                                    <a class="master-code" href="/spk/{{ $entry->spk_id }}">{{ $entry->spk?->spk_no ?? '—' }}</a>
+                                @else
+                                    <span class="badge badge-primary">Custom</span>
+                                @endif
+                            </td>
                             <td><span class="badge badge-neutral">{{ $entry->process->name }}</span></td>
-                            @if($pageType === 'hasil')
                             <td>{{ $entry->buyer?->name ?? '—' }}</td>
                             <td class="text-sm">{{ $entry->part?->code ?? '—' }}</td>
                             <td>{{ $entry->sizeVariant?->code ?? '—' }}</td>
-                            @endif
                             <td class="td-num font-bold" style="color:var(--success)">{{ $entry->good_qty }}</td>
                             <td class="td-num" style="color:var(--warning)">{{ $entry->ng_qty }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $pageType === 'hasil' ? 7 : 4 }}">
+                        <tr><td colspan="7">
                             <div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada input untuk filter ini.</p></div>
                         </td></tr>
                     @endforelse
@@ -230,36 +239,40 @@
 
 </div>
 
-@if($pageType === 'hasil')
 <script>
-    function filterFgPartsForSpk() {
+    function syncProductionMasterFields() {
         const spkSelect = document.querySelector('select[name="spk_id"]');
-        const buyerInput = document.querySelector('[data-fg-buyer-input]');
-        const buyerLabel = document.querySelector('[data-fg-buyer-label]');
-        const partSelect = document.querySelector('[data-fg-part-select]');
-        const partHint = document.querySelector('[data-fg-part-hint]');
-        const sizeSelect = document.querySelector('[data-fg-size-select]');
+        const buyerSelect = document.querySelector('[data-custom-buyer-select]');
+        const partSelect = document.querySelector('[data-custom-part-select]');
+        const partHint = document.querySelector('[data-custom-part-hint]');
+        const sizeSelect = document.querySelector('[data-custom-size-select]');
+        const fields = document.querySelector('[data-custom-production-fields]');
 
-        if (!spkSelect || !buyerInput || !buyerLabel || !partSelect) {
+        if (!spkSelect || !buyerSelect || !partSelect || !sizeSelect) {
             return;
         }
 
         const selected = spkSelect.selectedOptions[0];
-        const buyerId = selected?.dataset.buyerId || '';
-        const buyerName = selected?.dataset.buyerName || '';
+        const hasSpk = Boolean(selected?.value);
+        const buyerId = hasSpk ? selected.dataset.buyerId || '' : buyerSelect.value;
         const lockedPartId = selected?.dataset.partId || '';
         const lockedSizeId = selected?.dataset.sizeId || '';
+        const requiresFgData = fields?.dataset.pageType === 'hasil';
 
-        buyerInput.value = buyerId;
-        buyerLabel.textContent = buyerName || 'Pilih SPK dulu';
+        buyerSelect.required = !hasSpk;
+        partSelect.required = !hasSpk || (requiresFgData && !lockedPartId);
+        sizeSelect.required = !hasSpk || (requiresFgData && !lockedSizeId);
+
+        if (hasSpk) {
+            buyerSelect.value = buyerId;
+        }
 
         let visibleCount = 0;
-        partSelect.disabled = !buyerId;
-        partSelect.value = '';
+        const previousPartId = partSelect.value;
 
         Array.from(partSelect.options).forEach((option) => {
             if (!option.value) {
-                option.textContent = buyerId ? '— Pilih Produk FG —' : '— Pilih SPK dulu —';
+                option.textContent = buyerId ? '— Pilih Item —' : '— Pilih Buyer dulu —';
                 option.hidden = false;
                 return;
             }
@@ -279,22 +292,25 @@
 
         if (lockedPartId) {
             partSelect.value = lockedPartId;
-            partHint.textContent = 'Produk mengikuti part yang sudah ditentukan di SPK.';
+            partHint.textContent = 'Item mengikuti SPK yang dipilih.';
         } else if (buyerId) {
-            partHint.textContent = visibleCount + ' produk FG tersedia untuk buyer ini.';
+            const previousOption = partSelect.querySelector(`option[value="${previousPartId}"]`);
+            partSelect.value = previousOption && !previousOption.disabled ? previousPartId : '';
+            partHint.textContent = visibleCount + ' item tersedia untuk buyer ini.';
         } else {
-            partHint.textContent = 'Produk akan tampil sesuai buyer SPK.';
+            partSelect.value = '';
+            partHint.textContent = 'Pilih buyer untuk menampilkan item.';
         }
 
-        if (sizeSelect && lockedSizeId) {
+        if (lockedSizeId) {
             sizeSelect.value = lockedSizeId;
         }
     }
 
-    document.querySelector('select[name="spk_id"]')?.addEventListener('change', filterFgPartsForSpk);
-    filterFgPartsForSpk();
+    document.querySelector('select[name="spk_id"]')?.addEventListener('change', syncProductionMasterFields);
+    document.querySelector('[data-custom-buyer-select]')?.addEventListener('change', syncProductionMasterFields);
+    syncProductionMasterFields();
 </script>
-@endif
 <script>
     const spkProcessTotals = @json($spkProcessTotals);
 
@@ -325,6 +341,8 @@
 
         if (targetQty > 0) {
             targetInfo.textContent = `Target lot: ${targetQty} pcs · Terpakai untuk proses saat ini: ${currentQty} pcs · Sisa: ${remainingQty} pcs`;
+        } else if (!spkId) {
+            targetInfo.textContent = 'Mode Custom · Tanpa batas target SPK';
         } else {
             targetInfo.textContent = 'Pilih SPK terlebih dulu';
         }

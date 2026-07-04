@@ -448,6 +448,7 @@ class ProductionAdminController extends Controller
         $process = Process::where('is_input_process', true)->find($request->input('process_id'));
         $requiresPart = $process ? $this->processRequiresPart($process) : false;
         $spk = Spk::find($request->input('spk_id'));
+        $isCustomEntry = ! $spk;
 
         $request->merge([
             'repairable_qty' => $request->input('reject_qty', $request->input('repairable_qty', $request->input('ng_qty', 0))),
@@ -455,12 +456,18 @@ class ProductionAdminController extends Controller
         ]);
 
         $validated = $request->validate([
-            'spk_id' => ['required', 'exists:spks,id'],
+            'spk_id' => ['nullable', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
-            'buyer_id' => ['nullable', 'exists:buyers,id'],
-            'part_id' => [$requiresPart && ! $spk?->part_id ? 'required' : 'nullable', 'exists:parts,id'],
-            'size_variant_id' => [$requiresPart && ! $spk?->size_variant_id ? 'required' : 'nullable', 'exists:size_variants,id'],
+            'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
+            'part_id' => [
+                $isCustomEntry || ($requiresPart && ! $spk?->part_id) ? 'required' : 'nullable',
+                'exists:parts,id',
+            ],
+            'size_variant_id' => [
+                $isCustomEntry || ($requiresPart && ! $spk?->size_variant_id) ? 'required' : 'nullable',
+                'exists:size_variants,id',
+            ],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -488,7 +495,13 @@ class ProductionAdminController extends Controller
             }
         }
 
-        if (! $requiresPart) {
+        if ($isCustomEntry && ! $this->partMatchesBuyer((int) $validated['part_id'], (int) $validated['buyer_id'])) {
+            return back()
+                ->withErrors(['part_id' => 'Item tidak sesuai dengan buyer yang dipilih.'])
+                ->withInput();
+        }
+
+        if (! $requiresPart && ! $isCustomEntry) {
             $validated['part_id'] = null;
         }
 
