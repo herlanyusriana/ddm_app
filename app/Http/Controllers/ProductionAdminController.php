@@ -193,6 +193,11 @@ class ProductionAdminController extends Controller
         return view('production.operator-create');
     }
 
+    public function importOperatorsForm(): View
+    {
+        return view('production.operator-import');
+    }
+
     public function createPart(): View
     {
         return view('production.part-create', ['buyers' => Buyer::orderBy('name')->get()]);
@@ -248,6 +253,63 @@ class ProductionAdminController extends Controller
         $operator->delete();
 
         return redirect('/masters/operators')->with('status', 'Operator master terhapus.');
+    }
+
+    public function exportOperators(): Response
+    {
+        $rows = Operator::orderBy('operator_code')->get()->map(fn (Operator $operator) => [
+            $operator->operator_code,
+            $operator->name,
+            $operator->qc_label,
+            $operator->leader_name,
+            $operator->target_prod,
+        ]);
+
+        return $this->xlsxResponse(
+            'operator_master_'.now()->format('Ymd_His').'.xlsx',
+            'Operator Master',
+            ['No', 'Nama', 'QC LABEL', 'Group', 'Target Prod'],
+            $rows
+        );
+    }
+
+    public function importOperators(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx'],
+        ]);
+
+        $rows = $this->readXlsxUpload($request->file('file')->getRealPath());
+        $saved = 0;
+
+        foreach ($rows as $row) {
+            $operatorCode = trim((string) ($row['no'] ?? ''));
+            $name = trim((string) ($row['nama'] ?? ''));
+            $qcLabel = trim((string) ($row['qc_label'] ?? ''));
+            $leaderName = trim((string) ($row['group'] ?? ''));
+            $targetProd = trim((string) ($row['target_prod'] ?? ''));
+
+            if (
+                $operatorCode === ''
+                || $name === ''
+                || ! ctype_digit($operatorCode)
+                || ($qcLabel !== '' && ! ctype_digit($qcLabel))
+                || ($targetProd !== '' && ! ctype_digit($targetProd))
+            ) {
+                continue;
+            }
+
+            Operator::updateOrCreate(['operator_code' => $operatorCode], [
+                'name' => $name,
+                'qc_label' => $qcLabel !== '' ? $qcLabel : null,
+                'leader_name' => $leaderName !== '' ? $leaderName : null,
+                'target_prod' => $targetProd !== '' ? (int) $targetProd : null,
+            ]);
+
+            $saved++;
+        }
+
+        return redirect('/masters/operators')->with('status', $saved.' operator berhasil diimport.');
     }
 
     public function storePart(Request $request): RedirectResponse

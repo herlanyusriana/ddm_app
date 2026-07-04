@@ -20,6 +20,8 @@
     @if($section === 'buyers')
         <a class="link-btn link-btn-primary" href="/masters/buyers/create">Tambah Buyer Baru</a>
     @elseif($section === 'operators')
+        <a class="link-btn link-btn-secondary" href="/masters/operators/export">Export Excel</a>
+        <a class="link-btn link-btn-secondary" href="/masters/operators/import">Import Excel</a>
         <a class="link-btn link-btn-primary" href="/masters/operators/create">Tambah Operator Baru</a>
     @elseif($section === 'parts')
         <a class="link-btn link-btn-secondary" href="/masters/parts/export">Export Excel</a>

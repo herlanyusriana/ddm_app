@@ -26,6 +26,9 @@ Route::post('/masters/buyers',         [ProductionAdminController::class, 'store
 Route::delete('/masters/buyers/{buyer}', [ProductionAdminController::class, 'destroyBuyer'])->name('buyers.destroy');
 
 Route::get('/masters/operators/create', [ProductionAdminController::class, 'createOperator'])->name('operators.create');
+Route::get('/masters/operators/export', [ProductionAdminController::class, 'exportOperators'])->name('operators.export');
+Route::get('/masters/operators/import', [ProductionAdminController::class, 'importOperatorsForm'])->name('operators.import.form');
+Route::post('/masters/operators/import', [ProductionAdminController::class, 'importOperators'])->name('operators.import');
 Route::post('/masters/operators', [ProductionAdminController::class, 'storeOperator'])->name('operators.store');
 Route::delete('/masters/operators/{operator}', [ProductionAdminController::class, 'destroyOperator'])->name('operators.destroy');
 

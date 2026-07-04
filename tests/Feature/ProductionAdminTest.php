@@ -193,6 +193,67 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('operators', ['name' => 'Siti Aminah']);
     }
 
+    public function test_operator_master_can_export_and_import_excel(): void
+    {
+        DB::table('operators')->insert([
+            'operator_code' => '0012',
+            'name' => 'Nama Lama',
+            'qc_label' => '001',
+            'leader_name' => 'Leader Lama',
+            'target_prod' => 100,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $list = $this->get('/masters/operators');
+        $list->assertOk();
+        $list->assertSee('href="/masters/operators/export"', false);
+        $list->assertSee('href="/masters/operators/import"', false);
+
+        $export = $this->get('/masters/operators/export');
+        $export->assertOk();
+        $export->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->assertStringContainsString('operator_master_', $export->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.xlsx', $export->headers->get('Content-Disposition'));
+
+        $importPage = $this->get('/masters/operators/import');
+        $importPage->assertOk();
+        $importPage->assertSee('No');
+        $importPage->assertSee('QC LABEL');
+        $importPage->assertSee('Target Prod');
+        $importPage->assertSee('name="file"', false);
+
+        $xlsx = $this->xlsx([
+            ['No', 'Nama', 'QC LABEL', 'Group', 'Target Prod'],
+            ['0012', 'Nama Diperbarui', '007', 'Budi', '250'],
+            ['0013', 'Operator Baru', '008', 'Andi', '200'],
+            ['ABC', 'Nomor Tidak Valid', '009', 'Andi', '200'],
+            ['0014', 'Target Tidak Valid', '010', 'Andi', '-1'],
+        ]);
+
+        $import = $this->post('/masters/operators/import', [
+            'file' => UploadedFile::fake()->createWithContent('operators.xlsx', $xlsx),
+        ]);
+
+        $import->assertSessionHasNoErrors();
+        $import->assertRedirect('/masters/operators');
+        $import->assertSessionHas('status', '2 operator berhasil diimport.');
+        $this->assertDatabaseHas('operators', [
+            'operator_code' => '0012',
+            'name' => 'Nama Diperbarui',
+            'qc_label' => '007',
+            'leader_name' => 'Budi',
+            'target_prod' => 250,
+        ]);
+        $this->assertDatabaseHas('operators', [
+            'operator_code' => '0013',
+            'name' => 'Operator Baru',
+        ]);
+        $this->assertDatabaseMissing('operators', ['operator_code' => 'ABC']);
+        $this->assertDatabaseMissing('operators', ['operator_code' => '0014']);
+        $this->assertDatabaseCount('operators', 2);
+    }
+
     public function test_input_wip_sidebar_lists_only_wip_processes_in_sort_order(): void
     {
         $sewing = Process::factory()->create([
