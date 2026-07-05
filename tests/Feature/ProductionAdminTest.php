@@ -1008,6 +1008,23 @@ class ProductionAdminTest extends TestCase
         }
     }
 
+    public function test_custom_mode_hide_target_is_attached_to_item_not_buyer(): void
+    {
+        Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+
+        $page = $this->get('/input-proses');
+
+        $page->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/<div class="field">\s*<label>Kode Buyer<\/label>/',
+            $page->getContent()
+        );
+        $this->assertMatchesRegularExpression(
+            '/<div class="field" data-spk-item-field>\s*<label>Item/',
+            $page->getContent()
+        );
+    }
+
     public function test_custom_wip_entry_persists_master_data_without_spk(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);

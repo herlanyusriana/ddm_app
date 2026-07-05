@@ -118,7 +118,7 @@
                 </div>
 
                 <div data-custom-production-fields data-page-type="{{ $pageType }}" class="form-grid">
-                    <div class="field" data-spk-item-field>
+                    <div class="field">
                         <label>Kode Buyer</label>
                         <select name="buyer_id" required data-custom-buyer-select>
                             <option value="">— Pilih Buyer —</option>
@@ -127,7 +127,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="field">
+                    <div class="field" data-spk-item-field>
                         <label>Item {{ $pageType === 'hasil' ? 'FG' : '' }}</label>
                         <select name="part_id" required data-custom-part-select>
                             <option value="">— Pilih Item —</option>
