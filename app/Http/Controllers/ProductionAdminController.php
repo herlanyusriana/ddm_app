@@ -72,13 +72,13 @@ class ProductionAdminController extends Controller
             'shift' => $shift,
             'shiftOptions' => $this->shiftOptions(),
             'isManualWindow' => $window['manual'],
-            'buyers' => Buyer::orderBy('name')->get(),
+            'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(),
             'operators' => Operator::orderBy('operator_code')->get(),
             'parts' => Part::with('buyer')
                 ->when($type === 'hasil', fn ($query) => $query->where('classification', 'FG'))
                 ->orderBy('code')
                 ->get(),
-            'sizes' => SizeVariant::orderBy('code')->get(),
+            'sizes' => SizeVariant::where('is_active', true)->orderBy('production_code')->orderBy('code')->get(),
             'spks' => $spks,
             'inputProcesses' => $inputProcesses,
             'selectedProcess' => $selectedProcess,
@@ -202,7 +202,7 @@ class ProductionAdminController extends Controller
 
     public function createPart(): View
     {
-        return view('production.part-create', ['buyers' => Buyer::orderBy('name')->get()]);
+        return view('production.part-create', ['buyers' => Buyer::where('is_active', true)->orderBy('name')->get()]);
     }
 
     public function importPartsForm(): View
@@ -232,6 +232,16 @@ class ProductionAdminController extends Controller
 
     public function destroyBuyer(Buyer $buyer): RedirectResponse
     {
+        $isReferenced = Part::where('buyer_id', $buyer->id)->exists()
+            || Spk::where('buyer_id', $buyer->id)->exists()
+            || ProductionEntry::where('buyer_id', $buyer->id)->exists();
+
+        if ($isReferenced) {
+            $buyer->update(['is_active' => false]);
+
+            return redirect('/masters/buyers')->with('status', 'Buyer sudah dipakai dan berhasil diarsipkan.');
+        }
+
         $buyer->delete();
 
         return redirect('/masters/buyers')->with('status', 'Buyer master terhapus.');
@@ -433,9 +443,15 @@ class ProductionAdminController extends Controller
 
     public function storeSize(Request $request): RedirectResponse
     {
+        $productionCode = strtoupper((string) $request->input('production_code'));
+        $request->merge(['production_code' => $productionCode]);
         SizeVariant::create($request->validate([
-            'code' => ['required', 'string', 'max:40', 'unique:size_variants,code'],
-            'name' => ['nullable', 'string', 'max:120'],
+            'production_code' => ['required', Rule::in(['A', 'B'])],
+            'code' => [
+                'required', 'string', 'max:40',
+                Rule::unique('size_variants', 'code')->where('production_code', $productionCode),
+            ],
+            'point' => ['required', 'numeric', 'min:0'],
         ]));
 
         return redirect('/masters/sizes')->with('status', 'Size master tersimpan.');
@@ -450,12 +466,13 @@ class ProductionAdminController extends Controller
 
     public function exportSizes(): Response
     {
-        $rows = SizeVariant::orderBy('code')->get()->map(fn (SizeVariant $size) => [
+        $rows = SizeVariant::orderBy('production_code')->orderBy('code')->get()->map(fn (SizeVariant $size) => [
+            $size->production_code,
             $size->code,
-            $size->name,
+            $size->point,
         ]);
 
-        return $this->xlsxResponse('size_master_'.now()->format('Ymd_His').'.xlsx', 'Size Master', ['code', 'name'], $rows);
+        return $this->xlsxResponse('size_master_'.now()->format('Ymd_His').'.xlsx', 'Size Master', ['Code', 'Type', 'Point'], $rows);
     }
 
     public function importSizes(Request $request): RedirectResponse
@@ -468,14 +485,19 @@ class ProductionAdminController extends Controller
         $saved = 0;
 
         foreach ($rows as $row) {
-            $code = trim((string) ($row['code'] ?? ''));
+            $productionCode = strtoupper(trim((string) ($row['code'] ?? '')));
+            $type = strtoupper(trim((string) ($row['type'] ?? '')));
+            $point = $this->nullableNumber($row['point'] ?? null);
 
-            if ($code === '') {
+            if (! in_array($productionCode, ['A', 'B'], true) || $type === '' || $point === null || $point < 0) {
                 continue;
             }
 
-            SizeVariant::updateOrCreate(['code' => $code], [
-                'name' => $row['name'] ?? null,
+            SizeVariant::updateOrCreate([
+                'production_code' => $productionCode,
+                'code' => $type,
+            ], [
+                'point' => $point,
             ]);
 
             $saved++;
@@ -648,7 +670,7 @@ class ProductionAdminController extends Controller
 
         $isBinding = strcasecmp($process->name, 'Binding') === 0;
         $headers = $isBinding
-            ? ['No', 'Nama Operator', 'Target Operator', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject']
+            ? ['No', 'Nama Operator', 'Target Operator', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject', 'Total Point']
             : ['Buyer', 'Size', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject'];
 
         $rows = $isBinding
@@ -705,7 +727,10 @@ class ProductionAdminController extends Controller
         return response()->json([
             'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
             'parts' => Part::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
-            'sizes' => SizeVariant::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
+            'sizes' => SizeVariant::where('is_active', true)
+                ->orderBy('production_code')
+                ->orderBy('code')
+                ->get(['id', 'production_code', 'code', 'name', 'point']),
             'processes' => Process::where('is_input_process', true)->orderBy('sort_order')->get(['id', 'name']),
             'mappings' => BuyerPartSize::where('is_active', true)->get(['buyer_id', 'part_id', 'size_variant_id']),
         ]);
@@ -881,6 +906,7 @@ class ProductionAdminController extends Controller
                     ...array_map(fn ($bucket) => $this->formatBuyerSizeBucket($bucket), $hours),
                     (int) $operatorEntries->sum('good_qty'),
                     (int) $operatorEntries->sum('ng_qty'),
+                    round($operatorEntries->sum(fn (ProductionEntry $entry) => $entry->good_qty * (float) ($entry->sizeVariant?->point ?? 0)), 2),
                 ];
             })
             ->values();
@@ -940,7 +966,12 @@ class ProductionAdminController extends Controller
             ->map(function ($group) {
                 $first = $group->first();
 
-                return ($first->buyer?->code ?? '—').' / '.($first->sizeVariant?->code ?? '—')
+                $size = $first->sizeVariant;
+                $sizeCode = $size
+                    ? ($size->production_code ? $size->production_code.'-' : '').$size->code
+                    : '—';
+
+                return ($first->buyer?->code ?? '—').' / '.$sizeCode
                     .' = '.(int) $group->sum('good_qty').', Reject = '.(int) $group->sum('ng_qty');
             })
             ->implode("\n");

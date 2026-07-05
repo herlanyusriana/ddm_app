@@ -203,7 +203,7 @@
                                 <select name="items[{{ $index }}][size_variant_id]">
                                     <option value="">— Autofill jika terdeteksi —</option>
                                     @foreach($sizes as $size)
-                                        <option value="{{ $size->id }}" @selected(($item['size_variant_id'] ?? '') == $size->id)>{{ $size->code }}</option>
+                                        <option value="{{ $size->id }}" @selected(($item['size_variant_id'] ?? '') == $size->id)>{{ $size->display_label }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -263,7 +263,7 @@
                 <select name="items[__INDEX__][size_variant_id]">
                     <option value="">— Autofill jika terdeteksi —</option>
                     @foreach($sizes as $size)
-                        <option value="{{ $size->id }}">{{ $size->code }}</option>
+                        <option value="{{ $size->id }}">{{ $size->display_label }}</option>
                     @endforeach
                 </select>
             </div>

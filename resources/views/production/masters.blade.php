@@ -96,7 +96,7 @@
                 @forelse($buyers as $buyer)
                     <tr data-master-row="{{ strtolower($buyer->code.' '.$buyer->name) }}">
                         <td><span class="master-code">{{ $buyer->code }}</span></td>
-                        <td><span class="master-primary">{{ $buyer->name }}</span></td>
+                        <td><span class="master-primary">{{ $buyer->name }}</span> @unless($buyer->is_active)<span class="badge badge-neutral">Diarsipkan</span>@endunless</td>
                         <td class="master-actions-cell">
                             <form class="master-actions" method="post" action="/masters/buyers/{{ $buyer->id }}" onsubmit="return confirm('Hapus buyer {{ $buyer->code }}?')">
                                 @csrf
@@ -238,12 +238,13 @@
         </div>
         <div class="master-table-wrap">
             <table class="master-table">
-                <thead><tr><th>Kode</th><th>Nama Size</th><th class="master-actions-cell">Aksi</th></tr></thead>
+                <thead><tr><th>Code</th><th>Type</th><th>Point</th><th class="master-actions-cell">Aksi</th></tr></thead>
                 <tbody data-master-body>
                 @forelse($sizes as $size)
-                    <tr data-master-row="{{ strtolower($size->code.' '.$size->name) }}">
-                        <td><span class="master-code">{{ $size->code }}</span></td>
-                        <td><span class="master-primary">{{ $size->name ?? '-' }}</span></td>
+                    <tr data-master-row="{{ strtolower($size->production_code.' '.$size->code) }}">
+                        <td><span class="master-code">{{ $size->production_code ?? '-' }}</span></td>
+                        <td><span class="master-primary">{{ $size->code }}</span></td>
+                        <td>{{ $size->point ?? '-' }}</td>
                         <td class="master-actions-cell">
                             <form class="master-actions" method="post" action="/masters/sizes/{{ $size->id }}" onsubmit="return confirm('Hapus size {{ $size->code }}?')">
                                 @csrf
@@ -253,7 +254,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="3"><div class="master-empty"><strong>Belum ada size.</strong>Import dari Excel atau tambah manual dari tombol kanan atas.</div></td></tr>
+                    <tr><td colspan="4"><div class="master-empty"><strong>Belum ada size.</strong>Import dari Excel atau tambah manual dari tombol kanan atas.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>

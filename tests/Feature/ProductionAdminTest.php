@@ -509,6 +509,19 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('buyers', ['id' => $buyer->id]);
     }
 
+    public function test_referenced_buyer_is_archived_and_hidden_from_new_input(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ', 'name' => 'Amazon', 'is_active' => true]);
+        Part::factory()->create(['buyer_id' => $buyer->id]);
+
+        $response = $this->delete("/masters/buyers/{$buyer->id}");
+
+        $response->assertRedirect('/masters/buyers');
+        $this->assertDatabaseHas('buyers', ['id' => $buyer->id, 'is_active' => false]);
+        $this->get('/masters/buyers')->assertSee('Diarsipkan');
+        $this->get('/production/input-proses')->assertDontSee('AMZ · Amazon');
+    }
+
     public function test_size_master_list_create_and_delete_are_separated(): void
     {
         $size = SizeVariant::factory()->create(['code' => '12Q', 'name' => 'Queen']);
@@ -582,7 +595,7 @@ class ProductionAdminTest extends TestCase
 
     public function test_size_master_can_export_and_import_excel_xlsx(): void
     {
-        SizeVariant::factory()->create(['code' => '12Q', 'name' => 'Queen']);
+        SizeVariant::factory()->create(['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
 
         $export = $this->get('/masters/sizes/export');
 
@@ -592,9 +605,9 @@ class ProductionAdminTest extends TestCase
         $this->assertStringContainsString('.xlsx', $export->headers->get('Content-Disposition'));
 
         $xlsx = $this->xlsx([
-            ['code', 'name'],
-            ['12Q', 'Queen Updated'],
-            ['8T', 'Twin'],
+            ['Code', 'Type', 'Point'],
+            ['A', '12Q', '1,3'],
+            ['B', '12Q', '0,65'],
         ]);
 
         $import = $this->post('/masters/sizes/import', [
@@ -603,8 +616,8 @@ class ProductionAdminTest extends TestCase
 
         $import->assertSessionHasNoErrors();
         $import->assertRedirect('/masters/sizes');
-        $this->assertDatabaseHas('size_variants', ['code' => '12Q', 'name' => 'Queen Updated']);
-        $this->assertDatabaseHas('size_variants', ['code' => '8T', 'name' => 'Twin']);
+        $this->assertDatabaseHas('size_variants', ['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
+        $this->assertDatabaseHas('size_variants', ['production_code' => 'B', 'code' => '12Q', 'point' => 0.65]);
         $this->assertDatabaseCount('size_variants', 2);
     }
 
@@ -1029,7 +1042,7 @@ class ProductionAdminTest extends TestCase
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);
         $part = Part::factory()->create(['buyer_id' => $buyer->id, 'code' => 'ITEM-001']);
-        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
         $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
 
         $response = $this->post('/production-entries', [
@@ -1152,7 +1165,7 @@ class ProductionAdminTest extends TestCase
     public function test_binding_hourly_export_uses_operator_target_and_hour_bucket(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);
-        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
         $operator = Operator::create(['operator_code' => '0012', 'name' => 'Siti', 'target_prod' => 250]);
         $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
         ProductionEntry::factory()->create([
@@ -1173,7 +1186,9 @@ class ProductionAdminTest extends TestCase
         $this->assertStringContainsString('0012', $sheet);
         $this->assertStringContainsString('Siti', $sheet);
         $this->assertStringContainsString('250', $sheet);
-        $this->assertStringContainsString('AMZ / 12Q = 12, Reject = 2', $sheet);
+        $this->assertStringContainsString('AMZ / A-12Q = 12, Reject = 2', $sheet);
+        $this->assertStringContainsString('Total Point', $sheet);
+        $this->assertStringContainsString('15.6', $sheet);
     }
 
     public function test_non_binding_hourly_export_omits_operator_identity(): void

@@ -22,9 +22,9 @@ class SpkController extends Controller
 
     public function create()
     {
-        $buyers = Buyer::orderBy('name')->get();
+        $buyers = Buyer::where('is_active', true)->orderBy('name')->get();
         $parts  = Part::with('buyer')->where('classification', 'FG')->orderBy('code')->get();
-        $sizes  = SizeVariant::orderBy('code')->get();
+        $sizes  = SizeVariant::where('is_active', true)->orderBy('production_code')->orderBy('code')->get();
         return view('production.spk.create', compact('buyers', 'parts', 'sizes'));
     }
 

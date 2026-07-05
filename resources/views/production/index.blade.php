@@ -147,7 +147,7 @@
                         <label>Kode Size</label>
                         <select name="size_variant_id" required data-custom-size-select>
                             <option value="">— Pilih Size —</option>
-                            @foreach($sizes as $s)<option value="{{ $s->id }}">{{ $s->code }}</option>@endforeach
+                            @foreach($sizes as $s)<option value="{{ $s->id }}">{{ $s->display_label }}</option>@endforeach
                         </select>
                     </div>
                 </div>

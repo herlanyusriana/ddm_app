@@ -4,7 +4,7 @@
 <section class="topbar">
     <div class="title">
         <h1>Import Size Master</h1>
-        <p>Upload file XLSX dari Excel. Data dengan code yang sama akan diupdate.</p>
+        <p>Upload file XLSX. Kombinasi Code dan Type yang sama akan diupdate.</p>
     </div>
     <a class="link-btn link-btn-primary" href="/masters/sizes">Kembali ke List</a>
 </section>
@@ -26,8 +26,9 @@
         <table>
             <thead><tr><th>Kolom</th><th>Keterangan</th></tr></thead>
             <tbody>
-                <tr><td>code</td><td>Wajib. Contoh: 12Q, 8T, 14K.</td></tr>
-                <tr><td>name</td><td>Opsional. Contoh: Queen, Twin, King.</td></tr>
+                <tr><td>Code</td><td>Wajib. Nilai A atau B.</td></tr>
+                <tr><td>Type</td><td>Wajib. Contoh: 12Q, 8T, 14K.</td></tr>
+                <tr><td>Point</td><td>Wajib. Contoh: 1,3 atau 0,65.</td></tr>
             </tbody>
         </table>
     </article>
