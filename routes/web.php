@@ -64,6 +64,8 @@ Route::post('/warehouse/spk/{spk}/prepare',  [SpkController::class, 'warehousePr
 // ── Reports ──
 Route::get('/reports/fg',       [ProductionAdminController::class, 'fgReportPage'])->name('reports.fg');
 Route::get('/reports/fg/print', [ProductionAdminController::class, 'fgReportPrint'])->name('reports.fg.print');
+Route::get('/reports/production-hourly', [ProductionAdminController::class, 'productionHourlyExport'])
+    ->name('reports.production-hourly');
 
 // ── API ──
 Route::get('/api/masters',              [ProductionAdminController::class, 'apiMasters']);

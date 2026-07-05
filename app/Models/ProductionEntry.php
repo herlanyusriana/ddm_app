@@ -11,6 +11,7 @@ class ProductionEntry extends Model
 
     protected $fillable = [
         'spk_id',
+        'operator_id',
         'production_date',
         'shift',
         'buyer_id',
@@ -51,5 +52,10 @@ class ProductionEntry extends Model
     public function spk()
     {
         return $this->belongsTo(Spk::class);
+    }
+
+    public function operator()
+    {
+        return $this->belongsTo(Operator::class);
     }
 }

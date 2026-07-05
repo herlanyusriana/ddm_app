@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Buyer;
+use App\Models\Operator;
 use App\Models\Part;
 use App\Models\Process;
 use App\Models\ProductionEntry;
@@ -1030,7 +1031,7 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseHas('production_entries', [
             'spk_id' => null,
             'buyer_id' => $buyer->id,
-            'part_id' => $part->id,
+            'part_id' => null,
             'size_variant_id' => $size->id,
             'process_id' => $process->id,
             'good_qty' => 20,
@@ -1040,11 +1041,10 @@ class ProductionAdminTest extends TestCase
         $history = $this->get('/input-proses?production_date=2026-07-04&shift=1');
         $history->assertOk();
         $history->assertSee('Custom');
-        $history->assertSee('ITEM-001');
         $history->assertSee('12Q');
     }
 
-    public function test_custom_fg_entry_requires_master_data_and_matching_buyer_item(): void
+    public function test_custom_fg_entry_requires_buyer_and_size_but_not_item(): void
     {
         $amazon = Buyer::factory()->create(['code' => 'AMZ']);
         $wayfair = Buyer::factory()->create(['code' => 'WF']);
@@ -1066,7 +1066,8 @@ class ProductionAdminTest extends TestCase
             'good_qty' => 5,
             'reject_qty' => 0,
         ]);
-        $missing->assertSessionHasErrors(['buyer_id', 'part_id', 'size_variant_id']);
+        $missing->assertSessionHasErrors(['buyer_id', 'size_variant_id']);
+        $missing->assertSessionDoesntHaveErrors('part_id');
 
         $mismatch = $this->post('/production-entries', [
             'production_date' => '2026-07-04',
@@ -1078,7 +1079,108 @@ class ProductionAdminTest extends TestCase
             'good_qty' => 5,
             'reject_qty' => 0,
         ]);
-        $mismatch->assertSessionHasErrors('part_id');
+        $mismatch->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $packing->id,
+            'buyer_id' => $amazon->id,
+            'size_variant_id' => $size->id,
+            'part_id' => null,
+        ]);
+    }
+
+    public function test_binding_requires_operator_while_other_processes_do_not(): void
+    {
+        $buyer = Buyer::factory()->create();
+        $size = SizeVariant::factory()->create();
+        $operator = Operator::create(['operator_code' => '0012', 'name' => 'Siti', 'target_prod' => 250]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+
+        $bindingPage = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $bindingPage->assertOk();
+        $bindingPage->assertSee('name="operator_id"', false);
+        $bindingPage->assertSee('0012 · Siti');
+        $bindingPage->assertSee('Export History Excel');
+        $bindingPage->assertSee('process_id='.$binding->id, false);
+
+        $missing = $this->post('/production-entries', [
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'process_id' => $binding->id, 'good_qty' => 10, 'reject_qty' => 1,
+        ]);
+        $missing->assertSessionHasErrors('operator_id');
+
+        $bindingEntry = $this->post('/production-entries', [
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'operator_id' => $operator->id, 'process_id' => $binding->id,
+            'good_qty' => 10, 'reject_qty' => 1,
+        ]);
+        $bindingEntry->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $binding->id, 'operator_id' => $operator->id, 'part_id' => null,
+        ]);
+
+        $otherEntry = $this->post('/production-entries', [
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'process_id' => $sewing->id, 'good_qty' => 5, 'reject_qty' => 0,
+        ]);
+        $otherEntry->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $sewing->id, 'operator_id' => null, 'part_id' => null,
+        ]);
+    }
+
+    public function test_binding_hourly_export_uses_operator_target_and_hour_bucket(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $operator = Operator::create(['operator_code' => '0012', 'name' => 'Siti', 'target_prod' => 250]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'part_id' => null, 'size_variant_id' => $size->id,
+            'process_id' => $binding->id, 'operator_id' => $operator->id,
+            'good_qty' => 12, 'ng_qty' => 2,
+            'created_at' => '2026-07-05 01:30:00', 'updated_at' => '2026-07-05 01:30:00',
+        ]);
+
+        $response = $this->get('/reports/production-hourly?production_date=2026-07-05&shift=1&process_id='.$binding->id);
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $sheet = $this->xlsxSheetXml($response->getContent());
+        $this->assertStringContainsString('Target', $sheet);
+        $this->assertStringContainsString('Jam 1', $sheet);
+        $this->assertStringContainsString('0012', $sheet);
+        $this->assertStringContainsString('Siti', $sheet);
+        $this->assertStringContainsString('250', $sheet);
+        $this->assertStringContainsString('AMZ / 12Q = 12, Reject = 2', $sheet);
+    }
+
+    public function test_non_binding_hourly_export_omits_operator_identity(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'part_id' => null, 'size_variant_id' => $size->id,
+            'process_id' => $sewing->id, 'good_qty' => 8, 'ng_qty' => 1,
+            'created_at' => '2026-07-05 01:10:00', 'updated_at' => '2026-07-05 01:10:00',
+        ]);
+
+        $response = $this->get('/reports/production-hourly?production_date=2026-07-05&shift=1&process_id='.$sewing->id);
+
+        $response->assertOk();
+        $sheet = $this->xlsxSheetXml($response->getContent());
+        $this->assertStringContainsString('Buyer', $sheet);
+        $this->assertStringContainsString('Size', $sheet);
+        $this->assertStringContainsString('AMZ', $sheet);
+        $this->assertStringContainsString('12Q', $sheet);
+        $this->assertStringNotContainsString('Nama Operator', $sheet);
+        $this->assertStringNotContainsString('Target Operator', $sheet);
     }
 
     public function test_production_input_uses_good_and_reject_only(): void
@@ -1677,6 +1779,19 @@ class ProductionAdminTest extends TestCase
         @unlink($tmp);
 
         return $content;
+    }
+
+    private function xlsxSheetXml(string $content): string
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'read_xlsx_');
+        file_put_contents($tmp, $content);
+        $zip = new \ZipArchive();
+        $zip->open($tmp);
+        $sheet = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        @unlink($tmp);
+
+        return html_entity_decode($sheet, ENT_QUOTES | ENT_XML1, 'UTF-8');
     }
 
     private function xlsxColumnName(int $index): string

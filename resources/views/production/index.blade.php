@@ -1,6 +1,13 @@
 @extends('production.layout', ['title' => $pageTitle, 'subtitle' => 'Input Good dan Reject per proses'])
 
 @section('topbar-actions')
+    @php($exportProcess = $selectedProcess ?? $inputProcesses->first())
+    @if($exportProcess)
+        <a
+            class="link-btn link-btn-success"
+            href="{{ route('reports.production-hourly', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id], false) }}"
+        >Export History Excel</a>
+    @endif
     <form class="filter-bar" method="get" action="" style="margin:0;border:0;background:transparent;padding:0">
         @if($pageType === 'proses' && $selectedProcess)
             <input type="hidden" name="process_id" value="{{ $selectedProcess->id }}">
@@ -102,7 +109,7 @@
                             </option>
                         @endforeach
                     </select>
-                    <div class="field-hint">Kosongkan SPK untuk input menggunakan Buyer, Item, dan Size dari Master Data.</div>
+                    <div class="field-hint">Kosongkan SPK untuk input menggunakan Buyer dan Size dari Master Data.</div>
                 </div>
                 <div class="field">
                     <label>Target Lot & Sisa Kapasitas</label>
@@ -111,7 +118,7 @@
                 </div>
 
                 <div data-custom-production-fields data-page-type="{{ $pageType }}" class="form-grid">
-                    <div class="field">
+                    <div class="field" data-spk-item-field>
                         <label>Kode Buyer</label>
                         <select name="buyer_id" required data-custom-buyer-select>
                             <option value="">— Pilih Buyer —</option>
@@ -152,6 +159,19 @@
                         <label>Proses aktif</label>
                         <div class="readonly-pill">{{ $selectedProcess->name }}</div>
                     </div>
+                    @if(strcasecmp($selectedProcess->name, 'Binding') === 0)
+                        <div class="field">
+                            <label>Operator Binding</label>
+                            <select name="operator_id" required>
+                                <option value="">— Pilih Operator —</option>
+                                @foreach($operators as $operator)
+                                    <option value="{{ $operator->id }}">
+                                        {{ $operator->operator_code }} · {{ $operator->name }} · Target {{ number_format($operator->target_prod ?? 0) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                 @else
                     <div>
                         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Pilih Proses</div>
@@ -204,6 +224,7 @@
                         <tr>
                             <th>SPK</th>
                             <th>Proses</th>
+                            @if($pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0)<th>Operator</th>@endif
                             <th>Buyer</th><th>Item</th><th>Size</th>
                             <th class="td-num">Good</th>
                             <th class="td-num">Reject</th>
@@ -220,6 +241,9 @@
                                 @endif
                             </td>
                             <td><span class="badge badge-neutral">{{ $entry->process->name }}</span></td>
+                            @if($pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0)
+                                <td>{{ $entry->operator?->name ?? '—' }}</td>
+                            @endif
                             <td>{{ $entry->buyer?->name ?? '—' }}</td>
                             <td class="text-sm">{{ $entry->part?->code ?? '—' }}</td>
                             <td>{{ $entry->sizeVariant?->code ?? '—' }}</td>
@@ -227,7 +251,7 @@
                             <td class="td-num" style="color:var(--warning)">{{ $entry->ng_qty }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="7">
+                        <tr><td colspan="{{ $pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0 ? 8 : 7 }}">
                             <div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada input untuk filter ini.</p></div>
                         </td></tr>
                     @endforelse
@@ -247,6 +271,7 @@
         const partHint = document.querySelector('[data-custom-part-hint]');
         const sizeSelect = document.querySelector('[data-custom-size-select]');
         const fields = document.querySelector('[data-custom-production-fields]');
+        const itemField = document.querySelector('[data-spk-item-field]');
 
         if (!spkSelect || !buyerSelect || !partSelect || !sizeSelect) {
             return;
@@ -260,8 +285,13 @@
         const requiresFgData = fields?.dataset.pageType === 'hasil';
 
         buyerSelect.required = !hasSpk;
-        partSelect.required = !hasSpk || (requiresFgData && !lockedPartId);
+        partSelect.required = hasSpk && requiresFgData && !lockedPartId;
         sizeSelect.required = !hasSpk || (requiresFgData && !lockedSizeId);
+        itemField.style.display = hasSpk && requiresFgData ? '' : 'none';
+
+        if (!hasSpk) {
+            partSelect.value = '';
+        }
 
         if (hasSpk) {
             buyerSelect.value = buyerId;

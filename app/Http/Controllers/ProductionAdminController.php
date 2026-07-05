@@ -10,6 +10,7 @@ use App\Models\Process;
 use App\Models\ProductionEntry;
 use App\Models\SizeVariant;
 use App\Models\Spk;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -72,6 +73,7 @@ class ProductionAdminController extends Controller
             'shiftOptions' => $this->shiftOptions(),
             'isManualWindow' => $window['manual'],
             'buyers' => Buyer::orderBy('name')->get(),
+            'operators' => Operator::orderBy('operator_code')->get(),
             'parts' => Part::with('buyer')
                 ->when($type === 'hasil', fn ($query) => $query->where('classification', 'FG'))
                 ->orderBy('code')
@@ -81,7 +83,7 @@ class ProductionAdminController extends Controller
             'inputProcesses' => $inputProcesses,
             'selectedProcess' => $selectedProcess,
             'spkProcessTotals' => $spkProcessTotals,
-            'entries' => ProductionEntry::with(['spk', 'buyer', 'part', 'sizeVariant', 'process'])
+            'entries' => ProductionEntry::with(['spk', 'operator', 'buyer', 'part', 'sizeVariant', 'process'])
                 ->whereDate('production_date', $date)
                 ->where('shift', $shift)
                 ->whereIn('process_id', $inputProcesses->pluck('id'))
@@ -512,6 +514,7 @@ class ProductionAdminController extends Controller
 
         $process = Process::where('is_input_process', true)->find($request->input('process_id'));
         $requiresPart = $process ? $this->processRequiresPart($process) : false;
+        $requiresOperator = $process && strcasecmp($process->name, 'Binding') === 0;
         $spk = Spk::find($request->input('spk_id'));
         $isCustomEntry = ! $spk;
 
@@ -526,13 +529,14 @@ class ProductionAdminController extends Controller
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
             'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
             'part_id' => [
-                $isCustomEntry || ($requiresPart && ! $spk?->part_id) ? 'required' : 'nullable',
+                ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
                 'exists:parts,id',
             ],
             'size_variant_id' => [
                 $isCustomEntry || ($requiresPart && ! $spk?->size_variant_id) ? 'required' : 'nullable',
                 'exists:size_variants,id',
             ],
+            'operator_id' => [$requiresOperator ? 'required' : 'nullable', 'exists:operators,id'],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -560,14 +564,16 @@ class ProductionAdminController extends Controller
             }
         }
 
-        if ($isCustomEntry && ! $this->partMatchesBuyer((int) $validated['part_id'], (int) $validated['buyer_id'])) {
-            return back()
-                ->withErrors(['part_id' => 'Item tidak sesuai dengan buyer yang dipilih.'])
-                ->withInput();
-        }
-
         if (! $requiresPart && ! $isCustomEntry) {
             $validated['part_id'] = null;
+        }
+
+        if ($isCustomEntry) {
+            $validated['part_id'] = null;
+        }
+
+        if (! $requiresOperator) {
+            $validated['operator_id'] = null;
         }
 
         if ($spk) {
@@ -619,6 +625,40 @@ class ProductionAdminController extends Controller
             'shiftOptions' => $this->shiftOptions(),
             'fgReport'     => $this->fgReport($date, $shift, $spkId),
         ]);
+    }
+
+    public function productionHourlyExport(Request $request): Response
+    {
+        $validated = $request->validate([
+            'production_date' => ['required', 'date'],
+            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'process_id' => [
+                'required',
+                Rule::exists('processes', 'id')->where('is_input_process', true),
+            ],
+        ]);
+
+        $process = Process::findOrFail($validated['process_id']);
+        $entries = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
+            ->whereDate('production_date', $validated['production_date'])
+            ->where('shift', $validated['shift'])
+            ->where('process_id', $process->id)
+            ->orderBy('created_at')
+            ->get();
+
+        $isBinding = strcasecmp($process->name, 'Binding') === 0;
+        $headers = $isBinding
+            ? ['No', 'Nama Operator', 'Target Operator', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject']
+            : ['Buyer', 'Size', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject'];
+
+        $rows = $isBinding
+            ? $this->bindingHourlyRows($entries, $validated['production_date'], $validated['shift'])
+            : $this->processHourlyRows($entries, $validated['production_date'], $validated['shift']);
+
+        $filename = 'history_'.strtolower(preg_replace('/[^a-z0-9]+/i', '_', $process->name))
+            .'_'.$validated['production_date'].'_shift_'.$validated['shift'].'.xlsx';
+
+        return $this->xlsxResponse($filename, substr($process->name, 0, 31), $headers, $rows);
     }
 
     public function fgReportPrint(Request $request)
@@ -823,6 +863,96 @@ class ProductionAdminController extends Controller
         $lines[] = 'terimakasi';
 
         return trim(implode("\n", $lines));
+    }
+
+    private function bindingHourlyRows($entries, string $date, string $shift)
+    {
+        return $entries
+            ->whereNotNull('operator_id')
+            ->groupBy('operator_id')
+            ->map(function ($operatorEntries) use ($date, $shift) {
+                $operator = $operatorEntries->first()->operator;
+                $hours = $this->hourlyEntryBuckets($operatorEntries, $date, $shift);
+
+                return [
+                    $operator?->operator_code,
+                    $operator?->name,
+                    $operator?->target_prod,
+                    ...array_map(fn ($bucket) => $this->formatBuyerSizeBucket($bucket), $hours),
+                    (int) $operatorEntries->sum('good_qty'),
+                    (int) $operatorEntries->sum('ng_qty'),
+                ];
+            })
+            ->values();
+    }
+
+    private function processHourlyRows($entries, string $date, string $shift)
+    {
+        return $entries
+            ->groupBy(fn (ProductionEntry $entry) => ($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
+            ->map(function ($groupEntries) use ($date, $shift) {
+                $first = $groupEntries->first();
+                $hours = $this->hourlyEntryBuckets($groupEntries, $date, $shift);
+
+                return [
+                    $first->buyer?->code ?? '—',
+                    $first->sizeVariant?->code ?? '—',
+                    ...array_map(fn ($bucket) => $this->formatQuantityBucket($bucket), $hours),
+                    (int) $groupEntries->sum('good_qty'),
+                    (int) $groupEntries->sum('ng_qty'),
+                ];
+            })
+            ->values();
+    }
+
+    private function hourlyEntryBuckets($entries, string $date, string $shift): array
+    {
+        $buckets = array_fill(0, 7, null);
+        $start = CarbonImmutable::parse($date, 'Asia/Jakarta');
+        $start = match ($shift) {
+            '1' => $start->setTime(8, 0),
+            '2' => $start->setTime(16, 0),
+            '3' => $start->addDay()->startOfDay(),
+        };
+
+        foreach ($entries as $entry) {
+            $timestamp = CarbonImmutable::parse($entry->created_at, config('app.timezone'))
+                ->setTimezone('Asia/Jakarta');
+            $hourIndex = intdiv($timestamp->getTimestamp() - $start->getTimestamp(), 3600);
+
+            if ($hourIndex >= 0 && $hourIndex < 7) {
+                $buckets[$hourIndex] ??= collect();
+                $buckets[$hourIndex]->push($entry);
+            }
+        }
+
+        return $buckets;
+    }
+
+    private function formatBuyerSizeBucket($entries): string
+    {
+        if (! $entries) {
+            return '';
+        }
+
+        return $entries
+            ->groupBy(fn (ProductionEntry $entry) => ($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
+            ->map(function ($group) {
+                $first = $group->first();
+
+                return ($first->buyer?->code ?? '—').' / '.($first->sizeVariant?->code ?? '—')
+                    .' = '.(int) $group->sum('good_qty').', Reject = '.(int) $group->sum('ng_qty');
+            })
+            ->implode("\n");
+    }
+
+    private function formatQuantityBucket($entries): string
+    {
+        if (! $entries) {
+            return '';
+        }
+
+        return 'Good = '.(int) $entries->sum('good_qty').', Reject = '.(int) $entries->sum('ng_qty');
     }
 
     private function normalizeSheetHeader(?string $value): string
