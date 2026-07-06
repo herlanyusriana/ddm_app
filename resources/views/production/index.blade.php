@@ -122,7 +122,21 @@
                     <div class="field-hint" data-spk-warning style="display:none;"></div>
                 </div>
 
-                <div data-custom-production-fields data-page-type="{{ $pageType }}" class="form-grid">
+                <div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Mode Pencatatan</div>
+                    <div class="processes" style="grid-template-columns:repeat(2,1fr)">
+                        <label class="process-label">
+                            <input type="radio" name="record_mode" value="production" checked>
+                            Input Produksi
+                        </label>
+                        <label class="process-label">
+                            <input type="radio" name="record_mode" value="trouble">
+                            Trouble
+                        </label>
+                    </div>
+                </div>
+
+                <div data-custom-production-fields data-production-mode-fields data-page-type="{{ $pageType }}" class="form-grid">
                     <div class="field">
                         <label>Kode Buyer</label>
                         <select name="buyer_id" required data-custom-buyer-select>
@@ -206,7 +220,7 @@
                     </div>
                 @endif
 
-                <div>
+                <div data-production-mode-fields>
                     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
                     <div class="qty-grid qty-grid-2">
                         <div class="qty-box good">
@@ -220,7 +234,34 @@
                     </div>
                 </div>
 
-                <button class="btn btn-primary btn-full btn-lg" type="submit">Simpan Input Produksi</button>
+                <div class="form-grid" data-trouble-mode-fields style="display:none">
+                    <div class="field">
+                        <label>Jenis Trouble</label>
+                        <select name="trouble_type" disabled required>
+                            <option value="">— Pilih Jenis Trouble —</option>
+                            <option value="Mesin">Mesin</option>
+                            <option value="Material">Material</option>
+                            <option value="Quality">Quality</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+                    <div class="form-row-2">
+                        <div class="field">
+                            <label>Jam Mulai</label>
+                            <input type="time" name="trouble_start_time" disabled required>
+                        </div>
+                        <div class="field">
+                            <label>Jam Selesai</label>
+                            <input type="time" name="trouble_end_time" disabled required>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Keterangan Trouble</label>
+                        <input name="trouble_notes" disabled maxlength="500" placeholder="Contoh: ganti bearing mesin" required>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-full btn-lg" type="submit" data-submit-production>Simpan Input Produksi</button>
             </form>
             @endif
         </div>
@@ -254,6 +295,58 @@
                     @empty
                         <tr><td colspan="{{ max(1, count($hourlyReport['headers'])) }}">
                             <div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada input untuk filter ini.</p></div>
+                        </td></tr>
+                    @endforelse
+                    </tbody>
+                    @if($hourlyReport['totals_row'])
+                        <tfoot>
+                            <tr style="background:var(--primary-soft);font-weight:800">
+                                @foreach($hourlyReport['totals_row'] as $index => $cell)
+                                    <td class="{{ str_starts_with($hourlyReport['headers'][$index] ?? '', 'Total ') ? 'td-num' : '' }}">
+                                        {{ $cell }}
+                                    </td>
+                                @endforeach
+                            </tr>
+                        </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <h2>History Trouble</h2>
+            <span class="badge badge-neutral">{{ $troubles->count() }} records</span>
+        </div>
+        <div class="panel-body no-pad">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            @if($historyPeriod === 'monthly')<th>Tanggal</th>@endif
+                            <th>Waktu</th>
+                            <th>Durasi</th>
+                            <th>Jenis</th>
+                            <th>Operator</th>
+                            <th>SPK</th>
+                            <th>Keterangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse($troubles as $trouble)
+                        <tr>
+                            @if($historyPeriod === 'monthly')<td>{{ $trouble->production_date->format('d M Y') }}</td>@endif
+                            <td>{{ substr($trouble->start_time, 0, 5) }} - {{ substr($trouble->end_time, 0, 5) }}</td>
+                            <td>{{ $trouble->duration_minutes }} menit</td>
+                            <td><span class="badge badge-warning">{{ $trouble->trouble_type }}</span></td>
+                            <td>{{ $trouble->operator?->name ?? '—' }}</td>
+                            <td>{{ $trouble->spk?->spk_no ?? 'Custom' }}</td>
+                            <td>{{ $trouble->notes }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="{{ $historyPeriod === 'monthly' ? 7 : 6 }}">
+                            <div class="empty-state"><div class="empty-icon">🛠️</div><p>Belum ada trouble untuk filter ini.</p></div>
                         </td></tr>
                     @endforelse
                     </tbody>
@@ -389,6 +482,27 @@
     });
     syncProductionMasterFields();
     syncProductionCode();
+
+    function syncRecordMode() {
+        const troubleMode = document.querySelector('input[name="record_mode"]:checked')?.value === 'trouble';
+        const troubleFields = document.querySelector('[data-trouble-mode-fields]');
+        const submitButton = document.querySelector('[data-submit-production]');
+
+        document.querySelectorAll('[data-production-mode-fields]').forEach((section) => {
+            section.style.display = troubleMode ? 'none' : '';
+            section.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = troubleMode);
+        });
+        troubleFields.style.display = troubleMode ? '' : 'none';
+        troubleFields.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = !troubleMode);
+        submitButton.textContent = troubleMode ? 'Simpan Trouble' : 'Simpan Input Produksi';
+
+        if (!troubleMode) {
+            syncProductionCode();
+        }
+    }
+
+    document.querySelectorAll('input[name="record_mode"]').forEach((radio) => radio.addEventListener('change', syncRecordMode));
+    syncRecordMode();
 </script>
 <script>
     document.querySelector('[data-history-period]')?.addEventListener('change', (event) => {

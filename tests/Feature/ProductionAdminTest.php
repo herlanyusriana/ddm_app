@@ -1237,7 +1237,8 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('Siti');
         $page->assertSee('08:30 · AMZ / A-12Q = 12, Reject = 2');
         $page->assertSee('Total Point');
-        $page->assertDontSee('<th>SPK</th>', false);
+        $page->assertSee('TOTAL PER JAM');
+        $page->assertSee('Good = 12, Reject = 2');
     }
 
     public function test_non_binding_history_matches_hourly_excel(): void
@@ -1311,6 +1312,54 @@ class ProductionAdminTest extends TestCase
         $page->assertDontSee('Jam 1');
         $this->assertStringContainsString('05 Jul 2026', $sheet);
         $this->assertStringContainsString('75%', $sheet);
+    }
+
+    public function test_trouble_mode_records_time_range_and_displays_duration_in_history(): void
+    {
+        $buyer = Buyer::factory()->create();
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F']);
+        $operator = Operator::create(['operator_code' => '15', 'name' => 'Fajarudin']);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+
+        $page = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $page->assertOk();
+        $page->assertSeeInOrder(['SPK / Lot Produksi', 'Mode Pencatatan']);
+        $page->assertSee('value="production"', false);
+        $page->assertSee('value="trouble"', false);
+        $page->assertSee('name="trouble_type"', false);
+        $page->assertSee('name="trouble_start_time"', false);
+        $page->assertSee('name="trouble_end_time"', false);
+
+        $response = $this->post('/production-entries', [
+            'record_mode' => 'trouble',
+            'production_date' => '2026-07-05',
+            'shift' => '1',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $binding->id,
+            'operator_id' => $operator->id,
+            'trouble_type' => 'Mesin',
+            'trouble_start_time' => '09:15',
+            'trouble_end_time' => '10:00',
+            'trouble_notes' => 'Ganti bearing',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $this->assertDatabaseHas('production_troubles', [
+            'process_id' => $binding->id,
+            'operator_id' => $operator->id,
+            'trouble_type' => 'Mesin',
+            'start_time' => '09:15',
+            'end_time' => '10:00',
+            'notes' => 'Ganti bearing',
+        ]);
+
+        $history = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $history->assertSee('History Trouble');
+        $history->assertSee('09:15 - 10:00');
+        $history->assertSee('45 menit');
+        $history->assertSee('Ganti bearing');
     }
 
     public function test_production_input_uses_good_and_reject_only(): void

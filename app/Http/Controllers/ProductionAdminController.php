@@ -8,6 +8,7 @@ use App\Models\Operator;
 use App\Models\Part;
 use App\Models\Process;
 use App\Models\ProductionEntry;
+use App\Models\ProductionTrouble;
 use App\Models\SizeVariant;
 use App\Models\Spk;
 use Carbon\CarbonImmutable;
@@ -71,7 +72,21 @@ class ProductionAdminController extends Controller
             : substr($date, 0, 7);
         $hourlyReport = $historyProcess
             ? $this->productionHourlyReport($date, $shift, $historyProcess, $historyPeriod, $productionMonth)
-            : ['process' => null, 'headers' => [], 'rows' => collect(), 'record_count' => 0];
+            : ['process' => null, 'headers' => [], 'rows' => collect(), 'totals_row' => null, 'record_count' => 0];
+        $troubles = ProductionTrouble::with(['spk', 'operator', 'process'])
+            ->when($historyProcess, fn ($query) => $query->where('process_id', $historyProcess->id))
+            ->where('shift', $shift)
+            ->when(
+                $historyPeriod === 'monthly',
+                function ($query) use ($productionMonth) {
+                    $monthStart = CarbonImmutable::createFromFormat('Y-m', $productionMonth)->startOfMonth();
+                    $query->whereBetween('production_date', [$monthStart->toDateString(), $monthStart->endOfMonth()->toDateString()]);
+                },
+                fn ($query) => $query->whereDate('production_date', $date),
+            )
+            ->orderByDesc('production_date')
+            ->orderByDesc('start_time')
+            ->get();
 
         return view('production.index', [
             'pageType' => $type,
@@ -94,6 +109,7 @@ class ProductionAdminController extends Controller
             'hourlyReport' => $hourlyReport,
             'historyPeriod' => $historyPeriod,
             'productionMonth' => $productionMonth,
+            'troubles' => $troubles,
         ]);
     }
 
@@ -539,6 +555,10 @@ class ProductionAdminController extends Controller
             ]);
         }
 
+        if ($request->input('record_mode', 'production') === 'trouble') {
+            return $this->storeProductionTrouble($request, $automaticWindow);
+        }
+
         $process = Process::where('is_input_process', true)->find($request->input('process_id'));
         $requiresPart = $process ? $this->processRequiresPart($process) : false;
         $requiresOperator = $process && strcasecmp($process->name, 'Binding') === 0;
@@ -636,6 +656,49 @@ class ProductionAdminController extends Controller
             ->with('status', 'Input produksi tersimpan.');
     }
 
+    private function storeProductionTrouble(Request $request, bool $automaticWindow): RedirectResponse
+    {
+        $process = Process::where('is_input_process', true)->find($request->input('process_id'));
+        $requiresOperator = $process && strcasecmp($process->name, 'Binding') === 0;
+
+        $validated = $request->validate([
+            'spk_id' => ['nullable', 'exists:spks,id'],
+            'operator_id' => [$requiresOperator ? 'required' : 'nullable', 'exists:operators,id'],
+            'production_date' => ['required', 'date'],
+            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'process_id' => [
+                'required',
+                Rule::exists('processes', 'id')->where('is_input_process', true),
+            ],
+            'trouble_type' => ['required', Rule::in(['Mesin', 'Material', 'Quality', 'Lainnya'])],
+            'trouble_start_time' => ['required', 'date_format:H:i'],
+            'trouble_end_time' => ['required', 'date_format:H:i', 'different:trouble_start_time'],
+            'trouble_notes' => ['required', 'string', 'max:500'],
+        ]);
+
+        ProductionTrouble::create([
+            'spk_id' => $validated['spk_id'] ?? null,
+            'operator_id' => $requiresOperator ? ($validated['operator_id'] ?? null) : null,
+            'production_date' => $validated['production_date'],
+            'shift' => $validated['shift'],
+            'process_id' => $validated['process_id'],
+            'trouble_type' => $validated['trouble_type'],
+            'start_time' => $validated['trouble_start_time'],
+            'end_time' => $validated['trouble_end_time'],
+            'notes' => $validated['trouble_notes'],
+        ]);
+
+        $redirectPath = $this->processRequiresPart($process) ? '/input-hasil' : '/input-proses';
+        $redirectQuery = ['process_id' => $validated['process_id']];
+        if (! $automaticWindow) {
+            $redirectQuery['production_date'] = $validated['production_date'];
+            $redirectQuery['shift'] = $validated['shift'];
+        }
+
+        return redirect($redirectPath.'?'.http_build_query($redirectQuery))
+            ->with('status', 'Trouble produksi tersimpan.');
+    }
+
     public function fgReportPage(Request $request)
     {
         if ($request->query('export') === 'xlsx') {
@@ -684,7 +747,12 @@ class ProductionAdminController extends Controller
         $filename = 'history_'.strtolower(preg_replace('/[^a-z0-9]+/i', '_', $process->name))
             .'_'.$periodLabel.'_shift_'.$validated['shift'].'.xlsx';
 
-        return $this->xlsxResponse($filename, substr($process->name, 0, 31), $report['headers'], $report['rows']);
+        $exportRows = collect($report['rows']);
+        if ($report['totals_row']) {
+            $exportRows->push($report['totals_row']);
+        }
+
+        return $this->xlsxResponse($filename, substr($process->name, 0, 31), $report['headers'], $exportRows);
     }
 
     public function fgReportPrint(Request $request)
@@ -950,6 +1018,7 @@ class ProductionAdminController extends Controller
                 'rows' => $isBinding
                     ? $this->bindingMonthlyRows($entries)
                     : $this->processMonthlyRows($entries),
+                'totals_row' => null,
                 'record_count' => $entries->count(),
             ];
         }
@@ -964,7 +1033,27 @@ class ProductionAdminController extends Controller
             'rows' => $isBinding
                 ? $this->bindingHourlyRows($entries, $date, $shift)
                 : $this->processHourlyRows($entries, $date, $shift),
+            'totals_row' => $this->hourlyTotalsRow($entries, $date, $shift, $isBinding),
             'record_count' => $entries->count(),
+        ];
+    }
+
+    private function hourlyTotalsRow($entries, string $date, string $shift, bool $isBinding): array
+    {
+        $hourTotals = array_map(function ($bucket): string {
+            return 'Good = '.(int) ($bucket?->sum('good_qty') ?? 0)
+                .', Reject = '.(int) ($bucket?->sum('ng_qty') ?? 0);
+        }, $this->hourlyEntryBuckets($entries, $date, $shift));
+
+        return [
+            'TOTAL PER JAM',
+            ...array_fill(0, $isBinding ? 2 : 1, ''),
+            ...$hourTotals,
+            (int) $entries->sum('good_qty'),
+            (int) $entries->sum('ng_qty'),
+            ...($isBinding ? [
+                round($entries->sum(fn (ProductionEntry $entry) => $entry->good_qty * (float) ($entry->sizeVariant?->point ?? 0)), 2),
+            ] : []),
         ];
     }
 
