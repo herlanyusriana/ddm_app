@@ -14,6 +14,18 @@ Route::get('/production-entries/{entry}/edit', [ProductionAdminController::class
 Route::put('/production-entries/{entry}', [ProductionAdminController::class, 'updateProductionEntry'])->name('production-entries.update');
 Route::delete('/production-entries/{entry}', [ProductionAdminController::class, 'destroyProductionEntry'])->name('production-entries.destroy');
 Route::get('/rework', [ProductionAdminController::class, 'reworkPage'])->name('rework.index');
+Route::get('/rework-results', [ProductionAdminController::class, 'reworkResultsPage'])->name('rework-results.index');
+Route::post('/rework-results', [ProductionAdminController::class, 'storeReworkResult'])->name('rework-results.store');
+Route::get('/rework-results/{result}/edit', [ProductionAdminController::class, 'editReworkResult'])->name('rework-results.edit');
+Route::put('/rework-results/{result}', [ProductionAdminController::class, 'updateReworkResult'])->name('rework-results.update');
+Route::delete('/rework-results/{result}', [ProductionAdminController::class, 'destroyReworkResult'])->name('rework-results.destroy');
+Route::get('/rework-results-export', [ProductionAdminController::class, 'exportReworkResults'])->name('rework-results.export');
+Route::get('/binding-reject-stock', [ProductionAdminController::class, 'bindingRejectStockPage'])->name('binding-reject-stock.index');
+Route::post('/binding-reject-stock', [ProductionAdminController::class, 'storeBindingRejectStock'])->name('binding-reject-stock.store');
+Route::get('/binding-reject-stock/{stock}/edit', [ProductionAdminController::class, 'editBindingRejectStock'])->name('binding-reject-stock.edit');
+Route::put('/binding-reject-stock/{stock}', [ProductionAdminController::class, 'updateBindingRejectStock'])->name('binding-reject-stock.update');
+Route::delete('/binding-reject-stock/{stock}', [ProductionAdminController::class, 'destroyBindingRejectStock'])->name('binding-reject-stock.destroy');
+Route::get('/binding-reject-stock-export', [ProductionAdminController::class, 'exportBindingRejectStock'])->name('binding-reject-stock.export');
 
 // ── Dashboard ──
 Route::get('/dashboard', [ProductionAdminController::class, 'dashboard'])->name('production.dashboard');

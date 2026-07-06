@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Buyer;
 use App\Models\BuyerPartSize;
+use App\Models\BindingRejectStock;
 use App\Models\Operator;
 use App\Models\Part;
 use App\Models\Process;
 use App\Models\ProductionEntry;
 use App\Models\ProductionTrouble;
+use App\Models\ReworkResult;
 use App\Models\SizeVariant;
 use App\Models\Spk;
 use Carbon\CarbonImmutable;
@@ -201,15 +203,17 @@ class ProductionAdminController extends Controller
             ->groupBy(fn (ProductionEntry $entry) => $entry->spk_id.'-'.$entry->process_id)
             ->map(function ($entries) {
                 $first = $entries->first();
+                $completed = (int) ReworkResult::whereIn('production_entry_id', $entries->pluck('id'))->sum('qty');
 
                 return [
                     'spk' => $first->spk,
                     'process' => $first->process,
-                    'reject_qty' => (int) $entries->sum('repairable_qty'),
+                    'reject_qty' => max(0, (int) $entries->sum('repairable_qty') - $completed),
                     'last_date' => $entries->max('production_date'),
                     'records' => $entries->count(),
                 ];
             })
+            ->filter(fn ($row) => $row['reject_qty'] > 0)
             ->sortByDesc('reject_qty')
             ->values();
 
@@ -218,6 +222,212 @@ class ProductionAdminController extends Controller
             'totalReject' => (int) $rows->sum('reject_qty'),
             'totalSpk' => $rows->pluck('spk.id')->filter()->unique()->count(),
         ]);
+    }
+
+    public function reworkResultsPage(Request $request): View
+    {
+        return $this->reworkResultsView($request);
+    }
+
+    public function editReworkResult(Request $request, ReworkResult $result): View
+    {
+        return $this->reworkResultsView($request, $result);
+    }
+
+    private function reworkResultsView(Request $request, ?ReworkResult $editResult = null): View
+    {
+        $date = (string) $request->query('date', now('Asia/Jakarta')->toDateString());
+        $sources = ProductionEntry::with(['buyer', 'sizeVariant', 'process', 'spk'])
+            ->where('repairable_qty', '>', 0)->latest()->get()
+            ->map(function (ProductionEntry $entry) use ($editResult) {
+                $used = (int) ReworkResult::where('production_entry_id', $entry->id)
+                    ->when($editResult, fn ($query) => $query->where('id', '!=', $editResult->id))
+                    ->sum('qty');
+                $entry->setAttribute('remaining_rework', max(0, (int) $entry->repairable_qty - $used));
+                return $entry;
+            })->filter(fn ($entry) => $entry->remaining_rework > 0 || $editResult?->production_entry_id === $entry->id);
+
+        return view('production.rework-results', [
+            'date' => $date,
+            'sources' => $sources,
+            'operators' => Operator::orderBy('operator_code')->get(),
+            'results' => ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'operator'])
+                ->whereDate('result_date', $date)->latest()->get(),
+            'editResult' => $editResult,
+        ]);
+    }
+
+    public function storeReworkResult(Request $request): RedirectResponse
+    {
+        ReworkResult::create($this->validatedReworkResult($request));
+        return redirect('/rework-results?date='.$request->input('result_date'))->with('status', 'Hasil rework tersimpan.');
+    }
+
+    public function updateReworkResult(Request $request, ReworkResult $result): RedirectResponse
+    {
+        $result->update($this->validatedReworkResult($request, $result));
+        return redirect('/rework-results?date='.$request->input('result_date'))->with('status', 'Hasil rework diperbarui.');
+    }
+
+    private function validatedReworkResult(Request $request, ?ReworkResult $current = null): array
+    {
+        $validated = $request->validate([
+            'production_entry_id' => ['required', 'exists:production_entries,id'],
+            'result_date' => ['required', 'date'],
+            'component' => ['required', Rule::in(['Topper', 'Border', 'Bottom'])],
+            'qty' => ['required', 'integer', 'min:1'],
+            'operator_id' => ['required', 'exists:operators,id'],
+            'reject_notes' => ['required', 'string', 'max:500'],
+        ]);
+        $source = ProductionEntry::findOrFail($validated['production_entry_id']);
+        $used = (int) ReworkResult::where('production_entry_id', $source->id)
+            ->when($current, fn ($query) => $query->where('id', '!=', $current->id))->sum('qty');
+        $remaining = max(0, (int) $source->repairable_qty - $used);
+        if ((int) $validated['qty'] > $remaining) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['qty' => "Qty melebihi sisa hutang rework ({$remaining})."]);
+        }
+        return $validated;
+    }
+
+    public function destroyReworkResult(ReworkResult $result): RedirectResponse
+    {
+        $result->delete();
+        return back()->with('status', 'Hasil rework dihapus dan hutang dikembalikan.');
+    }
+
+    public function exportReworkResults(Request $request): Response
+    {
+        $date = (string) $request->query('date', now('Asia/Jakarta')->toDateString());
+        $rows = ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'operator'])
+            ->whereDate('result_date', $date)->get()->map(fn ($result) => [
+                $result->productionEntry?->buyer?->code,
+                $result->productionEntry?->sizeVariant?->code,
+                $result->component,
+                $result->qty,
+                $result->operator?->operator_code,
+                $result->operator?->name,
+                $result->reject_notes,
+            ]);
+        return $this->xlsxResponse('hasil_rework_'.$date.'.xlsx', 'Hasil Rework', ['Buyer', 'Style', 'Bagian', 'Qty', 'No Operator', 'Nama Operator', 'Keterangan Reject'], $rows);
+    }
+
+    public function bindingRejectStockPage(Request $request): View
+    {
+        return $this->bindingRejectStockView($request);
+    }
+
+    public function editBindingRejectStock(Request $request, BindingRejectStock $stock): View
+    {
+        return $this->bindingRejectStockView($request, $stock);
+    }
+
+    private function bindingRejectStockView(Request $request, ?BindingRejectStock $editRecord = null): View
+    {
+        $date = (string) $request->query('date', now('Asia/Jakarta')->toDateString());
+        $ledger = BindingRejectStock::with(['buyer', 'sizeVariant'])
+            ->whereDate('transaction_date', '<=', $date)
+            ->orderBy('transaction_date')
+            ->orderBy('transaction_time')
+            ->orderBy('id')
+            ->get();
+        $balances = [];
+        foreach ($ledger as $row) {
+            $key = $row->buyer_id.'-'.$row->size_variant_id;
+            $balances[$key] = ($balances[$key] ?? 0) + (int) $row->qty_in - (int) $row->qty_out;
+            $row->setAttribute('balance', $balances[$key]);
+        }
+
+        $summary = $ledger->groupBy('buyer_id')->map(function ($buyerRows) {
+            return [
+                'buyer' => $buyerRows->first()->buyer,
+                'styles' => $buyerRows->groupBy('size_variant_id')->map(function ($styleRows) {
+                    return [
+                        'size' => $styleRows->first()->sizeVariant,
+                        'qty' => (int) $styleRows->sum('qty_in') - (int) $styleRows->sum('qty_out'),
+                    ];
+                })->values(),
+            ];
+        })->values();
+
+        return view('production.binding-reject-stock', [
+            'date' => $date,
+            'summary' => $summary,
+            'grandTotal' => (int) $summary->sum(fn ($group) => $group['styles']->sum('qty')),
+            'transactions' => $ledger->filter(fn (BindingRejectStock $row) => $row->transaction_date->toDateString() === $date),
+            'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(),
+            'sizes' => SizeVariant::where('is_active', true)->orderBy('production_code')->orderBy('code')->get(),
+            'editRecord' => $editRecord,
+        ]);
+    }
+
+    public function storeBindingRejectStock(Request $request): RedirectResponse
+    {
+        BindingRejectStock::create($this->validatedBindingRejectStock($request));
+
+        return redirect('/binding-reject-stock?date='.$request->input('transaction_date'))
+            ->with('status', 'Stock reject Binding tersimpan.');
+    }
+
+    public function updateBindingRejectStock(Request $request, BindingRejectStock $stock): RedirectResponse
+    {
+        $stock->update($this->validatedBindingRejectStock($request));
+
+        return redirect('/binding-reject-stock?date='.$request->input('transaction_date'))
+            ->with('status', 'Stock reject Binding diperbarui.');
+    }
+
+    public function destroyBindingRejectStock(BindingRejectStock $stock): RedirectResponse
+    {
+        $stock->delete();
+
+        return back()->with('status', 'Transaksi stock reject Binding dihapus.');
+    }
+
+    private function validatedBindingRejectStock(Request $request): array
+    {
+        $validated = $request->validate([
+            'transaction_date' => ['required', 'date'],
+            'transaction_time' => ['nullable', 'date_format:H:i'],
+            'pallet' => ['nullable', 'string', 'max:80'],
+            'po_no' => ['nullable', 'string', 'max:80'],
+            'buyer_id' => ['required', 'exists:buyers,id'],
+            'size_variant_id' => ['required', 'exists:size_variants,id'],
+            'qty_in' => ['required', 'integer', 'min:0'],
+            'qty_out' => ['required', 'integer', 'min:0'],
+            'paraf' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        if (((int) $validated['qty_in'] + (int) $validated['qty_out']) <= 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'qty_in' => 'IN atau OUT harus lebih dari 0.',
+            ]);
+        }
+
+        return $validated;
+    }
+
+    public function exportBindingRejectStock(Request $request): Response
+    {
+        $viewData = $this->bindingRejectStockView($request)->getData();
+        $rows = [];
+        foreach ($viewData['summary'] as $group) {
+            foreach ($group['styles'] as $style) {
+                $rows[] = [
+                    $group['buyer']?->code ?? $group['buyer']?->name,
+                    $style['size']?->code,
+                    $style['qty'],
+                ];
+            }
+            $rows[] = [($group['buyer']?->code ?? 'BUYER').' TOTAL', '', $group['styles']->sum('qty')];
+        }
+        $rows[] = ['GRAND TOTAL', '', $viewData['grandTotal']];
+
+        return $this->xlsxResponse(
+            'data_reject_binding_'.$viewData['date'].'.xlsx',
+            'Reject Binding',
+            ['Buyer', 'Style', 'QTY'],
+            $rows,
+        );
     }
 
     public function createBuyer(): View

@@ -1448,6 +1448,54 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('production_entries', ['id' => $entry->id]);
     }
 
+    public function test_binding_reject_stock_card_tracks_balance_and_supports_edit_delete_export(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '6T']);
+
+        $this->get('/binding-reject-stock?date=2026-07-05')
+            ->assertOk()
+            ->assertSee('Data Reject Binding')
+            ->assertSee('Stock Card');
+
+        $this->post('/binding-reject-stock', [
+            'transaction_date' => '2026-07-05',
+            'transaction_time' => '08:00',
+            'pallet' => 'P-01',
+            'po_no' => 'PO-01',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'qty_in' => 50,
+            'qty_out' => 2,
+            'paraf' => 'Dodi',
+        ])->assertRedirect('/binding-reject-stock?date=2026-07-05');
+
+        $stockId = DB::table('binding_reject_stocks')->value('id');
+        $page = $this->get('/binding-reject-stock?date=2026-07-05');
+        $page->assertSee('AMZ');
+        $page->assertSee('6T');
+        $page->assertSee('48');
+        $page->assertSee('GRAND TOTAL');
+        $page->assertSee('/binding-reject-stock/'.$stockId.'/edit', false);
+
+        $this->put('/binding-reject-stock/'.$stockId, [
+            'transaction_date' => '2026-07-05',
+            'transaction_time' => '08:00',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'qty_in' => 50,
+            'qty_out' => 3,
+        ])->assertRedirect('/binding-reject-stock?date=2026-07-05');
+        $this->assertDatabaseHas('binding_reject_stocks', ['id' => $stockId, 'qty_out' => 3]);
+
+        $this->get('/binding-reject-stock-export?date=2026-07-05')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->delete('/binding-reject-stock/'.$stockId)->assertRedirect();
+        $this->assertDatabaseMissing('binding_reject_stocks', ['id' => $stockId]);
+    }
+
     public function test_production_input_uses_good_and_reject_only(): void
     {
         Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
@@ -1492,6 +1540,36 @@ class ProductionAdminTest extends TestCase
         $rework->assertSee('SPK-RWK-001');
         $rework->assertSee('Sewing');
         $rework->assertSee('5');
+    }
+
+    public function test_rework_result_reduces_debt_and_supports_edit_delete_export(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['code' => '6T']);
+        $process = Process::factory()->create(['name' => 'Binding']);
+        $operator = Operator::create(['operator_code' => '23', 'name' => 'Dodi']);
+        $entry = ProductionEntry::factory()->create([
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id, 'process_id' => $process->id,
+            'repairable_qty' => 5, 'ng_qty' => 5, 'production_date' => '2026-07-07',
+        ]);
+
+        $this->get('/rework-results?date=2026-07-07')->assertOk()->assertSee('Input Hasil Rework')->assertSee('Sisa 5');
+        $this->post('/rework-results', [
+            'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
+            'component' => 'Bottom', 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
+        ])->assertRedirect('/rework-results?date=2026-07-07');
+        $resultId = DB::table('rework_results')->value('id');
+        $this->get('/rework')->assertSee('3');
+        $this->get('/rework-results/'.$resultId.'/edit?date=2026-07-07')->assertOk();
+        $this->put('/rework-results/'.$resultId, [
+            'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
+            'component' => 'Topper', 'qty' => 4, 'operator_id' => $operator->id, 'reject_notes' => 'SOM',
+        ])->assertRedirect('/rework-results?date=2026-07-07');
+        $this->assertDatabaseHas('rework_results', ['id' => $resultId, 'qty' => 4, 'component' => 'Topper']);
+        $this->get('/rework-results-export?date=2026-07-07')->assertOk();
+        $this->delete('/rework-results/'.$resultId)->assertRedirect();
+        $this->assertDatabaseMissing('rework_results', ['id' => $resultId]);
+        $this->get('/rework')->assertSee('5');
     }
 
     public function test_fg_input_filters_parts_by_selected_spk_buyer(): void
