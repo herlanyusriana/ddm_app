@@ -64,6 +64,10 @@ class ProductionAdminController extends Controller
                 $spkId => $rows->mapWithKeys(fn ($row) => [(string) $row->process_id => (int) $row->total_qty])->toArray(),
             ])
             ->toArray();
+        $historyProcess = $selectedProcess ?? $inputProcesses->first();
+        $hourlyReport = $historyProcess
+            ? $this->productionHourlyReport($date, $shift, $historyProcess)
+            : ['process' => null, 'headers' => [], 'rows' => collect(), 'record_count' => 0];
 
         return view('production.index', [
             'pageType' => $type,
@@ -83,12 +87,7 @@ class ProductionAdminController extends Controller
             'inputProcesses' => $inputProcesses,
             'selectedProcess' => $selectedProcess,
             'spkProcessTotals' => $spkProcessTotals,
-            'entries' => ProductionEntry::with(['spk', 'operator', 'buyer', 'part', 'sizeVariant', 'process'])
-                ->whereDate('production_date', $date)
-                ->where('shift', $shift)
-                ->whereIn('process_id', $inputProcesses->pluck('id'))
-                ->latest()
-                ->get(),
+            'hourlyReport' => $hourlyReport,
         ]);
     }
 
@@ -661,26 +660,12 @@ class ProductionAdminController extends Controller
         ]);
 
         $process = Process::findOrFail($validated['process_id']);
-        $entries = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
-            ->whereDate('production_date', $validated['production_date'])
-            ->where('shift', $validated['shift'])
-            ->where('process_id', $process->id)
-            ->orderBy('created_at')
-            ->get();
-
-        $isBinding = strcasecmp($process->name, 'Binding') === 0;
-        $headers = $isBinding
-            ? ['No', 'Nama Operator', 'Target Operator', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject', 'Total Point']
-            : ['Buyer', 'Size', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject'];
-
-        $rows = $isBinding
-            ? $this->bindingHourlyRows($entries, $validated['production_date'], $validated['shift'])
-            : $this->processHourlyRows($entries, $validated['production_date'], $validated['shift']);
+        $report = $this->productionHourlyReport($validated['production_date'], $validated['shift'], $process);
 
         $filename = 'history_'.strtolower(preg_replace('/[^a-z0-9]+/i', '_', $process->name))
             .'_'.$validated['production_date'].'_shift_'.$validated['shift'].'.xlsx';
 
-        return $this->xlsxResponse($filename, substr($process->name, 0, 31), $headers, $rows);
+        return $this->xlsxResponse($filename, substr($process->name, 0, 31), $report['headers'], $report['rows']);
     }
 
     public function fgReportPrint(Request $request)
@@ -912,6 +897,30 @@ class ProductionAdminController extends Controller
             ->values();
     }
 
+    private function productionHourlyReport(string $date, string $shift, Process $process): array
+    {
+        $entries = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
+            ->whereDate('production_date', $date)
+            ->where('shift', $shift)
+            ->where('process_id', $process->id)
+            ->orderBy('created_at')
+            ->get();
+
+        $isBinding = strcasecmp($process->name, 'Binding') === 0;
+        $headers = $isBinding
+            ? ['No', 'Nama Operator', 'Target Operator', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject', 'Total Point']
+            : ['Buyer', 'Size', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject'];
+
+        return [
+            'process' => $process,
+            'headers' => $headers,
+            'rows' => $isBinding
+                ? $this->bindingHourlyRows($entries, $date, $shift)
+                : $this->processHourlyRows($entries, $date, $shift),
+            'record_count' => $entries->count(),
+        ];
+    }
+
     private function processHourlyRows($entries, string $date, string $shift)
     {
         return $entries
@@ -962,7 +971,7 @@ class ProductionAdminController extends Controller
         }
 
         return $entries
-            ->groupBy(fn (ProductionEntry $entry) => ($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
+            ->groupBy(fn (ProductionEntry $entry) => $this->entryInputTime($entry).'-'.($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
             ->map(function ($group) {
                 $first = $group->first();
 
@@ -971,7 +980,7 @@ class ProductionAdminController extends Controller
                     ? ($size->production_code ? $size->production_code.'-' : '').$size->code
                     : '—';
 
-                return ($first->buyer?->code ?? '—').' / '.$sizeCode
+                return $this->entryInputTime($first).' · '.($first->buyer?->code ?? '—').' / '.$sizeCode
                     .' = '.(int) $group->sum('good_qty').', Reject = '.(int) $group->sum('ng_qty');
             })
             ->implode("\n");
@@ -983,7 +992,18 @@ class ProductionAdminController extends Controller
             return '';
         }
 
-        return 'Good = '.(int) $entries->sum('good_qty').', Reject = '.(int) $entries->sum('ng_qty');
+        return $entries
+            ->groupBy(fn (ProductionEntry $entry) => $this->entryInputTime($entry))
+            ->map(fn ($group) => $this->entryInputTime($group->first()).' · Good = '.(int) $group->sum('good_qty')
+                .', Reject = '.(int) $group->sum('ng_qty'))
+            ->implode("\n");
+    }
+
+    private function entryInputTime(ProductionEntry $entry): string
+    {
+        return CarbonImmutable::parse($entry->created_at, config('app.timezone'))
+            ->setTimezone('Asia/Jakarta')
+            ->format('H:i');
     }
 
     private function normalizeSheetHeader(?string $value): string

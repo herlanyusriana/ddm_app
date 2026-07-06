@@ -1,7 +1,7 @@
 @extends('production.layout', ['title' => $pageTitle, 'subtitle' => 'Input Good dan Reject per proses'])
 
 @section('topbar-actions')
-    @php($exportProcess = $selectedProcess ?? $inputProcesses->first())
+    @php($exportProcess = $hourlyReport['process'])
     @if($exportProcess)
         <a
             class="link-btn link-btn-success"
@@ -147,7 +147,13 @@
                         <label>Kode Size</label>
                         <select name="size_variant_id" required data-custom-size-select>
                             <option value="">— Pilih Size —</option>
-                            @foreach($sizes as $s)<option value="{{ $s->id }}">{{ $s->display_label }}</option>@endforeach
+                            @foreach($sizes as $s)
+                                <option
+                                    value="{{ $s->id }}"
+                                    data-production-code="{{ $s->production_code }}"
+                                    data-size-code="{{ $s->code }}"
+                                >{{ $s->display_label }}</option>
+                            @endforeach
                         </select>
                     </div>
                 </div>
@@ -201,8 +207,13 @@
                 </div>
 
                 <div class="field">
-                    <label>Catatan (opsional)</label>
-                    <input name="notes" placeholder="Tambahan informasi...">
+                    <label>Code Produksi</label>
+                    <select name="production_code" required data-production-code-select>
+                        <option value="">— Pilih Code —</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                    </select>
+                    <div class="field-hint">Code menentukan Size Variant dan Point produksi.</div>
                 </div>
 
                 <button class="btn btn-primary btn-full btn-lg" type="submit">Simpan Input Produksi</button>
@@ -215,43 +226,29 @@
     <div class="panel">
         <div class="panel-header">
             <h2>History Input</h2>
-            <span class="badge badge-neutral">{{ $entries->count() }} records</span>
+            <span class="badge badge-neutral">{{ $hourlyReport['record_count'] }} records</span>
         </div>
         <div class="panel-body no-pad">
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th>SPK</th>
-                            <th>Proses</th>
-                            @if($pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0)<th>Operator</th>@endif
-                            <th>Buyer</th><th>Item</th><th>Size</th>
-                            <th class="td-num">Good</th>
-                            <th class="td-num">Reject</th>
+                            @foreach($hourlyReport['headers'] as $header)
+                                <th class="{{ str_starts_with($header, 'Total ') ? 'td-num' : '' }}">{{ $header }}</th>
+                            @endforeach
                         </tr>
                     </thead>
                     <tbody>
-                    @forelse($entries as $entry)
+                    @forelse($hourlyReport['rows'] as $row)
                         <tr>
-                            <td>
-                                @if($entry->spk_id)
-                                    <a class="master-code" href="/spk/{{ $entry->spk_id }}">{{ $entry->spk?->spk_no ?? '—' }}</a>
-                                @else
-                                    <span class="badge badge-primary">Custom</span>
-                                @endif
-                            </td>
-                            <td><span class="badge badge-neutral">{{ $entry->process->name }}</span></td>
-                            @if($pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0)
-                                <td>{{ $entry->operator?->name ?? '—' }}</td>
-                            @endif
-                            <td>{{ $entry->buyer?->name ?? '—' }}</td>
-                            <td class="text-sm">{{ $entry->part?->code ?? '—' }}</td>
-                            <td>{{ $entry->sizeVariant?->code ?? '—' }}</td>
-                            <td class="td-num font-bold" style="color:var(--success)">{{ $entry->good_qty }}</td>
-                            <td class="td-num" style="color:var(--warning)">{{ $entry->ng_qty }}</td>
+                            @foreach($row as $index => $cell)
+                                <td class="{{ str_starts_with($hourlyReport['headers'][$index] ?? '', 'Total ') ? 'td-num' : '' }}">
+                                    {!! nl2br(e((string) $cell)) !!}
+                                </td>
+                            @endforeach
                         </tr>
                     @empty
-                        <tr><td colspan="{{ $pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0 ? 8 : 7 }}">
+                        <tr><td colspan="{{ max(1, count($hourlyReport['headers'])) }}">
                             <div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada input untuk filter ini.</p></div>
                         </td></tr>
                     @endforelse
@@ -270,6 +267,7 @@
         const partSelect = document.querySelector('[data-custom-part-select]');
         const partHint = document.querySelector('[data-custom-part-hint]');
         const sizeSelect = document.querySelector('[data-custom-size-select]');
+        const productionCodeSelect = document.querySelector('[data-production-code-select]');
         const fields = document.querySelector('[data-custom-production-fields]');
         const itemField = document.querySelector('[data-spk-item-field]');
 
@@ -334,11 +332,45 @@
 
         if (lockedSizeId) {
             sizeSelect.value = lockedSizeId;
+            productionCodeSelect.value = sizeSelect.selectedOptions[0]?.dataset.productionCode || '';
+        }
+    }
+
+    function syncProductionCode() {
+        const sizeSelect = document.querySelector('[data-custom-size-select]');
+        const productionCodeSelect = document.querySelector('[data-production-code-select]');
+
+        if (!sizeSelect || !productionCodeSelect) {
+            return;
+        }
+
+        const currentOption = sizeSelect.selectedOptions[0];
+        const currentSizeCode = currentOption?.dataset.sizeCode || '';
+        const productionCode = productionCodeSelect.value;
+
+        if (!productionCode) {
+            return;
+        }
+
+        const matchingOption = Array.from(sizeSelect.options).find((option) =>
+            option.dataset.productionCode === productionCode
+            && (!currentSizeCode || option.dataset.sizeCode === currentSizeCode)
+        );
+
+        if (matchingOption) {
+            sizeSelect.value = matchingOption.value;
+        } else {
+            sizeSelect.value = '';
         }
     }
 
     document.querySelector('select[name="spk_id"]')?.addEventListener('change', syncProductionMasterFields);
     document.querySelector('[data-custom-buyer-select]')?.addEventListener('change', syncProductionMasterFields);
+    document.querySelector('[data-production-code-select]')?.addEventListener('change', syncProductionCode);
+    document.querySelector('[data-custom-size-select]')?.addEventListener('change', (event) => {
+        const productionCodeSelect = document.querySelector('[data-production-code-select]');
+        productionCodeSelect.value = event.target.selectedOptions[0]?.dataset.productionCode || '';
+    });
     syncProductionMasterFields();
 </script>
 <script>

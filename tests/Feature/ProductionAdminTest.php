@@ -1215,6 +1215,70 @@ class ProductionAdminTest extends TestCase
         $this->assertStringNotContainsString('Target Operator', $sheet);
     }
 
+    public function test_binding_history_displays_hourly_report(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
+        $operator = Operator::create(['operator_code' => '0012', 'name' => 'Siti', 'target_prod' => 250]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'part_id' => null, 'size_variant_id' => $size->id,
+            'process_id' => $binding->id, 'operator_id' => $operator->id,
+            'good_qty' => 12, 'ng_qty' => 2,
+            'created_at' => '2026-07-05 01:30:00', 'updated_at' => '2026-07-05 01:30:00',
+        ]);
+
+        $page = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+
+        $page->assertOk();
+        $page->assertSee('Jam 1');
+        $page->assertSee('Nama Operator');
+        $page->assertSee('Siti');
+        $page->assertSee('08:30 · AMZ / A-12Q = 12, Reject = 2');
+        $page->assertSee('Total Point');
+        $page->assertDontSee('<th>SPK</th>', false);
+    }
+
+    public function test_non_binding_history_matches_hourly_excel(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'part_id' => null, 'size_variant_id' => $size->id,
+            'process_id' => $sewing->id, 'good_qty' => 8, 'ng_qty' => 1,
+            'created_at' => '2026-07-05 01:10:00', 'updated_at' => '2026-07-05 01:10:00',
+        ]);
+
+        $page = $this->get('/input-proses?process_id='.$sewing->id.'&production_date=2026-07-05&shift=1');
+        $export = $this->get('/reports/production-hourly?production_date=2026-07-05&shift=1&process_id='.$sewing->id);
+        $sheet = $this->xlsxSheetXml($export->getContent());
+        $expected = '08:10 · Good = 8, Reject = 1';
+
+        $page->assertOk();
+        $page->assertSee($expected);
+        $page->assertSee('AMZ');
+        $page->assertSee('12Q');
+        $this->assertStringContainsString($expected, $sheet);
+    }
+
+    public function test_production_input_chooses_production_code_for_size_point(): void
+    {
+        Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F', 'point' => 2]);
+        SizeVariant::factory()->create(['production_code' => 'B', 'code' => '10F', 'point' => 1]);
+
+        $page = $this->get('/input-proses');
+
+        $page->assertOk();
+        $page->assertSee('name="production_code"', false);
+        $page->assertSee('data-production-code="A"', false);
+        $page->assertSee('data-production-code="B"', false);
+        $page->assertSee('Code Produksi');
+    }
+
     public function test_production_input_uses_good_and_reject_only(): void
     {
         Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);
