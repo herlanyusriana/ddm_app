@@ -625,12 +625,14 @@ class ProductionAdminController extends Controller
         $this->syncSpkStatus($entry->spk);
 
         $redirectPath = $requiresPart ? '/input-hasil' : '/input-proses';
+        $redirectQuery = ['process_id' => $validated['process_id']];
 
-        if ($automaticWindow) {
-            return redirect($redirectPath)->with('status', 'Input produksi tersimpan.');
+        if (! $automaticWindow) {
+            $redirectQuery['production_date'] = $validated['production_date'];
+            $redirectQuery['shift'] = $validated['shift'];
         }
 
-        return redirect($redirectPath.'?production_date='.$validated['production_date'].'&shift='.$validated['shift'])
+        return redirect($redirectPath.'?'.http_build_query($redirectQuery))
             ->with('status', 'Input produksi tersimpan.');
     }
 

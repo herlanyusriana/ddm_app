@@ -709,7 +709,7 @@ class ProductionAdminTest extends TestCase
         ]);
 
         $response->assertSessionHasNoErrors();
-        $response->assertRedirect('/input-proses');
+        $response->assertRedirect('/input-proses?process_id='.$process->id);
         $this->assertDatabaseHas('production_entries', [
             'production_date' => '2026-07-04 00:00:00',
             'shift' => '3',
@@ -1057,7 +1057,7 @@ class ProductionAdminTest extends TestCase
         ]);
 
         $response->assertSessionHasNoErrors();
-        $response->assertRedirect('/input-proses?production_date=2026-07-04&shift=1');
+        $response->assertRedirect('/input-proses?process_id='.$process->id.'&production_date=2026-07-04&shift=1');
         $this->assertDatabaseHas('production_entries', [
             'spk_id' => null,
             'buyer_id' => $buyer->id,
