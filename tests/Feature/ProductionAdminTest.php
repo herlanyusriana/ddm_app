@@ -1129,6 +1129,8 @@ class ProductionAdminTest extends TestCase
         $bindingPage = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
         $bindingPage->assertOk();
         $bindingPage->assertSee('name="operator_id"', false);
+        $bindingPage->assertSee('name="operator_search"', false);
+        $bindingPage->assertSee('list="operator-suggestions"', false);
         $bindingPage->assertSee('0012 · Siti');
         $bindingPage->assertSee('Export History Excel');
         $bindingPage->assertSee('process_id='.$binding->id, false);
@@ -1238,7 +1240,7 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('08:30 · AMZ / A-12Q = 12, Reject = 2');
         $page->assertSee('Total Point');
         $page->assertSee('TOTAL PER JAM');
-        $page->assertSee('Good = 12, Reject = 2');
+        $page->assertSee('G: 12 · R: 2');
     }
 
     public function test_non_binding_history_matches_hourly_excel(): void

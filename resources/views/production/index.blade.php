@@ -67,9 +67,51 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .hourly-history-panel {
+        min-width: 0;
+    }
+
+    .hourly-history-table {
+        min-width: 1420px;
+    }
+
+    .hourly-history-table th,
+    .hourly-history-table td {
+        white-space: nowrap;
+    }
+
+    .hourly-history-table .hour-column {
+        min-width: 170px;
+    }
+
+    .hourly-history-table .identity-column {
+        min-width: 100px;
+    }
+
+    .hourly-history-table tfoot td {
+        background: var(--primary-soft);
+        border-top: 2px solid #bfdbfe;
+        color: var(--ink2);
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .trouble-history-panel {
+        grid-column: 2;
+        min-width: 0;
+    }
+
     @media (max-width: 760px) {
         .qty-grid-2 {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+
+        .hourly-history-table {
+            min-width: 1320px;
+        }
+
+        .trouble-history-panel {
+            grid-column: auto;
         }
     }
 </style>
@@ -196,14 +238,25 @@
                     @if(strcasecmp($selectedProcess->name, 'Binding') === 0)
                         <div class="field">
                             <label>Operator Binding</label>
-                            <select name="operator_id" required>
-                                <option value="">— Pilih Operator —</option>
+                            <input
+                                name="operator_search"
+                                list="operator-suggestions"
+                                value="{{ old('operator_search') }}"
+                                placeholder="Ketik nomor atau nama operator..."
+                                autocomplete="off"
+                                data-operator-search
+                                required
+                            >
+                            <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id>
+                            <datalist id="operator-suggestions">
                                 @foreach($operators as $operator)
-                                    <option value="{{ $operator->id }}">
-                                        {{ $operator->operator_code }} · {{ $operator->name }} · Target {{ number_format($operator->target_prod ?? 0) }}
-                                    </option>
+                                    <option
+                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
+                                        data-operator-id="{{ $operator->id }}"
+                                    >Target {{ number_format($operator->target_prod ?? 0) }}</option>
                                 @endforeach
-                            </select>
+                            </datalist>
+                            <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
                         </div>
                     @endif
                 @else
@@ -268,18 +321,18 @@
     </div>
 
     {{-- History --}}
-    <div class="panel">
+    <div class="panel hourly-history-panel">
         <div class="panel-header">
             <h2>History Input</h2>
             <span class="badge badge-neutral">{{ $hourlyReport['record_count'] }} records</span>
         </div>
         <div class="panel-body no-pad">
             <div class="table-wrap">
-                <table>
+                <table class="hourly-history-table">
                     <thead>
                         <tr>
                             @foreach($hourlyReport['headers'] as $header)
-                                <th class="{{ str_starts_with($header, 'Total ') ? 'td-num' : '' }}">{{ $header }}</th>
+                                <th class="{{ str_starts_with($header, 'Total ') ? 'td-num' : '' }} {{ str_starts_with($header, 'Jam ') ? 'hour-column' : 'identity-column' }}">{{ $header }}</th>
                             @endforeach
                         </tr>
                     </thead>
@@ -300,7 +353,7 @@
                     </tbody>
                     @if($hourlyReport['totals_row'])
                         <tfoot>
-                            <tr style="background:var(--primary-soft);font-weight:800">
+                            <tr>
                                 @foreach($hourlyReport['totals_row'] as $index => $cell)
                                     <td class="{{ str_starts_with($hourlyReport['headers'][$index] ?? '', 'Total ') ? 'td-num' : '' }}">
                                         {{ $cell }}
@@ -314,7 +367,7 @@
         </div>
     </div>
 
-    <div class="panel">
+    <div class="panel trouble-history-panel">
         <div class="panel-header">
             <h2>History Trouble</h2>
             <span class="badge badge-neutral">{{ $troubles->count() }} records</span>
@@ -503,6 +556,16 @@
 
     document.querySelectorAll('input[name="record_mode"]').forEach((radio) => radio.addEventListener('change', syncRecordMode));
     syncRecordMode();
+
+    const operatorSearch = document.querySelector('[data-operator-search]');
+    const operatorId = document.querySelector('[data-operator-id]');
+    const operatorOptions = Array.from(document.querySelectorAll('#operator-suggestions option'));
+
+    operatorSearch?.addEventListener('input', () => {
+        const selected = operatorOptions.find((option) => option.value === operatorSearch.value);
+        operatorId.value = selected?.dataset.operatorId || '';
+        operatorSearch.setCustomValidity(selected ? '' : 'Pilih operator dari suggestion.');
+    });
 </script>
 <script>
     document.querySelector('[data-history-period]')?.addEventListener('change', (event) => {

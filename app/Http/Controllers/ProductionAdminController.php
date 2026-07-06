@@ -1041,8 +1041,8 @@ class ProductionAdminController extends Controller
     private function hourlyTotalsRow($entries, string $date, string $shift, bool $isBinding): array
     {
         $hourTotals = array_map(function ($bucket): string {
-            return 'Good = '.(int) ($bucket?->sum('good_qty') ?? 0)
-                .', Reject = '.(int) ($bucket?->sum('ng_qty') ?? 0);
+            return 'G: '.(int) ($bucket?->sum('good_qty') ?? 0)
+                .' · R: '.(int) ($bucket?->sum('ng_qty') ?? 0);
         }, $this->hourlyEntryBuckets($entries, $date, $shift));
 
         return [
