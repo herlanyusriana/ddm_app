@@ -65,8 +65,12 @@ class ProductionAdminController extends Controller
             ])
             ->toArray();
         $historyProcess = $selectedProcess ?? $inputProcesses->first();
+        $historyPeriod = $request->query('history_period') === 'monthly' ? 'monthly' : 'daily';
+        $productionMonth = preg_match('/^\d{4}-\d{2}$/', (string) $request->query('production_month'))
+            ? (string) $request->query('production_month')
+            : substr($date, 0, 7);
         $hourlyReport = $historyProcess
-            ? $this->productionHourlyReport($date, $shift, $historyProcess)
+            ? $this->productionHourlyReport($date, $shift, $historyProcess, $historyPeriod, $productionMonth)
             : ['process' => null, 'headers' => [], 'rows' => collect(), 'record_count' => 0];
 
         return view('production.index', [
@@ -88,6 +92,8 @@ class ProductionAdminController extends Controller
             'selectedProcess' => $selectedProcess,
             'spkProcessTotals' => $spkProcessTotals,
             'hourlyReport' => $hourlyReport,
+            'historyPeriod' => $historyPeriod,
+            'productionMonth' => $productionMonth,
         ]);
     }
 
@@ -657,13 +663,24 @@ class ProductionAdminController extends Controller
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
             ],
+            'history_period' => ['nullable', Rule::in(['daily', 'monthly'])],
+            'production_month' => ['nullable', 'date_format:Y-m'],
         ]);
 
         $process = Process::findOrFail($validated['process_id']);
-        $report = $this->productionHourlyReport($validated['production_date'], $validated['shift'], $process);
+        $historyPeriod = $validated['history_period'] ?? 'daily';
+        $productionMonth = $validated['production_month'] ?? substr($validated['production_date'], 0, 7);
+        $report = $this->productionHourlyReport(
+            $validated['production_date'],
+            $validated['shift'],
+            $process,
+            $historyPeriod,
+            $productionMonth,
+        );
 
+        $periodLabel = $historyPeriod === 'monthly' ? $productionMonth : $validated['production_date'];
         $filename = 'history_'.strtolower(preg_replace('/[^a-z0-9]+/i', '_', $process->name))
-            .'_'.$validated['production_date'].'_shift_'.$validated['shift'].'.xlsx';
+            .'_'.$periodLabel.'_shift_'.$validated['shift'].'.xlsx';
 
         return $this->xlsxResponse($filename, substr($process->name, 0, 31), $report['headers'], $report['rows']);
     }
@@ -897,16 +914,44 @@ class ProductionAdminController extends Controller
             ->values();
     }
 
-    private function productionHourlyReport(string $date, string $shift, Process $process): array
+    private function productionHourlyReport(
+        string $date,
+        string $shift,
+        Process $process,
+        string $period = 'daily',
+        ?string $month = null,
+    ): array
     {
-        $entries = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
-            ->whereDate('production_date', $date)
+        $query = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
             ->where('shift', $shift)
-            ->where('process_id', $process->id)
+            ->where('process_id', $process->id);
+
+        if ($period === 'monthly') {
+            $monthStart = CarbonImmutable::createFromFormat('Y-m', $month ?? substr($date, 0, 7))->startOfMonth();
+            $query->whereBetween('production_date', [$monthStart->toDateString(), $monthStart->endOfMonth()->toDateString()]);
+        } else {
+            $query->whereDate('production_date', $date);
+        }
+
+        $entries = $query
+            ->orderBy('production_date')
             ->orderBy('created_at')
             ->get();
 
         $isBinding = strcasecmp($process->name, 'Binding') === 0;
+        if ($period === 'monthly') {
+            return [
+                'process' => $process,
+                'headers' => $isBinding
+                    ? ['Tanggal', 'No', 'Nama Operator', 'Target Operator', 'Total Good', 'Total Reject', 'Total Point', 'Pencapaian Target']
+                    : ['Tanggal', 'Buyer', 'Size', 'Total Good', 'Total Reject'],
+                'rows' => $isBinding
+                    ? $this->bindingMonthlyRows($entries)
+                    : $this->processMonthlyRows($entries),
+                'record_count' => $entries->count(),
+            ];
+        }
+
         $headers = $isBinding
             ? ['No', 'Nama Operator', 'Target Operator', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject', 'Total Point']
             : ['Buyer', 'Size', 'Jam 1', 'Jam 2', 'Jam 3', 'Jam 4', 'Jam 5', 'Jam 6', 'Jam 7', 'Total Good', 'Total Reject'];
@@ -919,6 +964,49 @@ class ProductionAdminController extends Controller
                 : $this->processHourlyRows($entries, $date, $shift),
             'record_count' => $entries->count(),
         ];
+    }
+
+    private function bindingMonthlyRows($entries)
+    {
+        return $entries
+            ->whereNotNull('operator_id')
+            ->groupBy(fn (ProductionEntry $entry) => $entry->production_date->format('Y-m-d').'-'.$entry->operator_id)
+            ->map(function ($operatorEntries) {
+                $first = $operatorEntries->first();
+                $operator = $first->operator;
+                $good = (int) $operatorEntries->sum('good_qty');
+                $target = (int) ($operator?->target_prod ?? 0);
+
+                return [
+                    $first->production_date->format('d M Y'),
+                    $operator?->operator_code,
+                    $operator?->name,
+                    $target,
+                    $good,
+                    (int) $operatorEntries->sum('ng_qty'),
+                    round($operatorEntries->sum(fn (ProductionEntry $entry) => $entry->good_qty * (float) ($entry->sizeVariant?->point ?? 0)), 2),
+                    ($target > 0 ? (int) round($good / $target * 100) : 0).'%',
+                ];
+            })
+            ->values();
+    }
+
+    private function processMonthlyRows($entries)
+    {
+        return $entries
+            ->groupBy(fn (ProductionEntry $entry) => $entry->production_date->format('Y-m-d').'-'.($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
+            ->map(function ($groupEntries) {
+                $first = $groupEntries->first();
+
+                return [
+                    $first->production_date->format('d M Y'),
+                    $first->buyer?->code ?? '—',
+                    $first->sizeVariant?->code ?? '—',
+                    (int) $groupEntries->sum('good_qty'),
+                    (int) $groupEntries->sum('ng_qty'),
+                ];
+            })
+            ->values();
     }
 
     private function processHourlyRows($entries, string $date, string $shift)

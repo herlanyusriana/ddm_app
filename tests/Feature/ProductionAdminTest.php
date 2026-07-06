@@ -1277,6 +1277,40 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('data-production-code="A"', false);
         $page->assertSee('data-production-code="B"', false);
         $page->assertSee('Code Produksi');
+        $page->assertSeeInOrder(['Code Produksi', 'Kode Size']);
+        $page->assertSee('option.hidden = !matchesCode', false);
+    }
+
+    public function test_monthly_history_displays_operator_per_date_performance_and_matches_excel(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F', 'point' => 2]);
+        $operator = Operator::create(['operator_code' => '15', 'name' => 'Fajarudin', 'target_prod' => 20]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+
+        foreach ([['2026-07-05', 10], ['2026-07-06', 15]] as [$date, $good]) {
+            ProductionEntry::factory()->create([
+                'production_date' => $date, 'shift' => '1',
+                'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+                'process_id' => $binding->id, 'operator_id' => $operator->id,
+                'good_qty' => $good, 'ng_qty' => 1,
+            ]);
+        }
+
+        $query = 'history_period=monthly&production_month=2026-07&production_date=2026-07-05&shift=1&process_id='.$binding->id;
+        $page = $this->get('/input-proses?'.$query);
+        $export = $this->get('/reports/production-hourly?'.$query);
+        $sheet = $this->xlsxSheetXml($export->getContent());
+
+        $page->assertOk();
+        $page->assertSee('05 Jul 2026');
+        $page->assertSee('06 Jul 2026');
+        $page->assertSee('Pencapaian Target');
+        $page->assertSee('50%');
+        $page->assertSee('75%');
+        $page->assertDontSee('Jam 1');
+        $this->assertStringContainsString('05 Jul 2026', $sheet);
+        $this->assertStringContainsString('75%', $sheet);
     }
 
     public function test_production_input_uses_good_and_reject_only(): void

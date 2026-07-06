@@ -5,14 +5,19 @@
     @if($exportProcess)
         <a
             class="link-btn link-btn-success"
-            href="{{ route('reports.production-hourly', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id], false) }}"
+            href="{{ route('reports.production-hourly', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth], false) }}"
         >Export History Excel</a>
     @endif
     <form class="filter-bar" method="get" action="" style="margin:0;border:0;background:transparent;padding:0">
         @if($pageType === 'proses' && $selectedProcess)
             <input type="hidden" name="process_id" value="{{ $selectedProcess->id }}">
         @endif
-        <input type="date" name="production_date" value="{{ $date }}" style="min-height:36px;font-size:13px">
+        <select name="history_period" data-history-period style="min-height:36px;font-size:13px">
+            <option value="daily" @selected($historyPeriod === 'daily')>Harian</option>
+            <option value="monthly" @selected($historyPeriod === 'monthly')>Bulanan</option>
+        </select>
+        <input type="date" name="production_date" value="{{ $date }}" data-daily-filter style="min-height:36px;font-size:13px;{{ $historyPeriod === 'monthly' ? 'display:none' : '' }}">
+        <input type="month" name="production_month" value="{{ $productionMonth }}" data-monthly-filter style="min-height:36px;font-size:13px;{{ $historyPeriod === 'daily' ? 'display:none' : '' }}">
         <select name="shift" style="min-height:36px;font-size:13px">
             @foreach($shiftOptions as $key => $opt)
                 <option value="{{ $key }}" @selected((string) $shift === (string) $key)>{{ $opt['label'] }}</option>
@@ -144,9 +149,18 @@
                         <div class="field-hint" data-custom-part-hint>Item tampil sesuai buyer yang dipilih.</div>
                     </div>
                     <div class="field">
+                        <label>Code Produksi</label>
+                        <select name="production_code" required data-production-code-select>
+                            <option value="">— Pilih Code —</option>
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                        </select>
+                        <div class="field-hint">Code menentukan pilihan Size dan Point produksi.</div>
+                    </div>
+                    <div class="field">
                         <label>Kode Size</label>
-                        <select name="size_variant_id" required data-custom-size-select>
-                            <option value="">— Pilih Size —</option>
+                        <select name="size_variant_id" required data-custom-size-select disabled>
+                            <option value="">— Pilih Code dulu —</option>
                             @foreach($sizes as $s)
                                 <option
                                     value="{{ $s->id }}"
@@ -204,16 +218,6 @@
                             <input type="number" min="0" name="reject_qty" value="0">
                         </div>
                     </div>
-                </div>
-
-                <div class="field">
-                    <label>Code Produksi</label>
-                    <select name="production_code" required data-production-code-select>
-                        <option value="">— Pilih Code —</option>
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                    </select>
-                    <div class="field-hint">Code menentukan Size Variant dan Point produksi.</div>
                 </div>
 
                 <button class="btn btn-primary btn-full btn-lg" type="submit">Simpan Input Produksi</button>
@@ -333,6 +337,7 @@
         if (lockedSizeId) {
             sizeSelect.value = lockedSizeId;
             productionCodeSelect.value = sizeSelect.selectedOptions[0]?.dataset.productionCode || '';
+            syncProductionCode();
         }
     }
 
@@ -348,14 +353,25 @@
         const currentSizeCode = currentOption?.dataset.sizeCode || '';
         const productionCode = productionCodeSelect.value;
 
-        if (!productionCode) {
-            return;
-        }
+        sizeSelect.disabled = !productionCode;
+        sizeSelect.options[0].textContent = productionCode ? '— Pilih Size —' : '— Pilih Code dulu —';
 
-        const matchingOption = Array.from(sizeSelect.options).find((option) =>
-            option.dataset.productionCode === productionCode
-            && (!currentSizeCode || option.dataset.sizeCode === currentSizeCode)
-        );
+        Array.from(sizeSelect.options).forEach((option) => {
+            if (!option.value) {
+                return;
+            }
+
+            const matchesCode = Boolean(productionCode) && option.dataset.productionCode === productionCode;
+            option.hidden = !matchesCode;
+            option.disabled = !matchesCode;
+        });
+
+        const matchingOption = currentSizeCode
+            ? Array.from(sizeSelect.options).find((option) =>
+                option.dataset.productionCode === productionCode
+                && option.dataset.sizeCode === currentSizeCode
+            )
+            : null;
 
         if (matchingOption) {
             sizeSelect.value = matchingOption.value;
@@ -372,6 +388,14 @@
         productionCodeSelect.value = event.target.selectedOptions[0]?.dataset.productionCode || '';
     });
     syncProductionMasterFields();
+    syncProductionCode();
+</script>
+<script>
+    document.querySelector('[data-history-period]')?.addEventListener('change', (event) => {
+        const monthly = event.target.value === 'monthly';
+        document.querySelector('[data-daily-filter]').style.display = monthly ? 'none' : '';
+        document.querySelector('[data-monthly-filter]').style.display = monthly ? '' : 'none';
+    });
 </script>
 <script>
     const spkProcessTotals = @json($spkProcessTotals);
