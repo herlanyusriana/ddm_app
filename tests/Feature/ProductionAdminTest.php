@@ -1409,6 +1409,45 @@ class ProductionAdminTest extends TestCase
         $history->assertSee('Ganti bearing');
     }
 
+    public function test_hourly_style_totals_and_production_entry_correction_actions(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'WF']);
+        $newBuyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '12T']);
+        $newSize = SizeVariant::factory()->create(['production_code' => 'B', 'code' => '10F']);
+        $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+        $entry = ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'process_id' => $process->id, 'good_qty' => 4, 'ng_qty' => 1,
+            'created_at' => '2026-07-05 01:10:00',
+        ]);
+
+        $page = $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+        $page->assertOk();
+        $page->assertSee('WF / A-12T = 4');
+        $page->assertSee('/production-entries/'.$entry->id.'/edit', false);
+        $page->assertSee('Koreksi Input Produksi');
+
+        $this->get('/production-entries/'.$entry->id.'/edit')->assertOk()->assertSee('Simpan Perubahan');
+        $this->put('/production-entries/'.$entry->id, [
+            'buyer_id' => $newBuyer->id,
+            'size_variant_id' => $newSize->id,
+            'good_qty' => 7,
+            'reject_qty' => 2,
+        ])->assertRedirect();
+        $this->assertDatabaseHas('production_entries', [
+            'id' => $entry->id,
+            'buyer_id' => $newBuyer->id,
+            'size_variant_id' => $newSize->id,
+            'good_qty' => 7,
+            'ng_qty' => 2,
+        ]);
+
+        $this->delete('/production-entries/'.$entry->id)->assertRedirect();
+        $this->assertDatabaseMissing('production_entries', ['id' => $entry->id]);
+    }
+
     public function test_production_input_uses_good_and_reject_only(): void
     {
         Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true, 'sort_order' => 30]);

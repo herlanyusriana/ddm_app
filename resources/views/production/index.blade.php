@@ -104,6 +104,11 @@
         color: var(--danger);
     }
 
+    .correction-actions {
+        display: flex;
+        gap: 6px;
+    }
+
     .trouble-history-panel {
         grid-column: 2;
         min-width: 0;
@@ -364,10 +369,19 @@
                             <tr>
                                 @foreach($hourlyReport['totals_row'] as $index => $cell)
                                     <td class="{{ str_starts_with($hourlyReport['headers'][$index] ?? '', 'Total ') ? 'td-num' : '' }}">
-                                        @if(preg_match('/^G: (\d+) · R: (\d+)$/', (string) $cell, $totals))
-                                            <span class="hour-good">G: {{ $totals[1] }}</span>
-                                            <span> · </span>
-                                            <span class="hour-reject">R: {{ $totals[2] }}</span>
+                                        @if(str_starts_with($hourlyReport['headers'][$index] ?? '', 'Jam '))
+                                            @foreach(explode("\n", (string) $cell) as $line)
+                                                @if(preg_match('/^TOTAL G: (\d+) · R: (\d+)$/', $line, $totals))
+                                                    <div style="margin-top:4px">
+                                                        <strong>TOTAL </strong>
+                                                        <span class="hour-good">G: {{ $totals[1] }}</span>
+                                                        <span> · </span>
+                                                        <span class="hour-reject">R: {{ $totals[2] }}</span>
+                                                    </div>
+                                                @else
+                                                    <div>{{ $line }}</div>
+                                                @endif
+                                            @endforeach
                                         @else
                                             {{ $cell }}
                                         @endif
@@ -415,6 +429,43 @@
                         <tr><td colspan="{{ $historyPeriod === 'monthly' ? 7 : 6 }}">
                             <div class="empty-state"><div class="empty-icon">🛠️</div><p>Belum ada trouble untuk filter ini.</p></div>
                         </td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel trouble-history-panel">
+        <div class="panel-header">
+            <h2>Koreksi Input Produksi</h2>
+            <span class="badge badge-neutral">{{ $correctionEntries->count() }} records</span>
+        </div>
+        <div class="panel-body no-pad">
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Waktu</th><th>Operator</th><th>Style</th><th>Good</th><th>Reject</th><th>Aksi</th></tr></thead>
+                    <tbody>
+                    @forelse($correctionEntries as $entry)
+                        <tr>
+                            <td>{{ $entry->created_at->timezone('Asia/Jakarta')->format('H:i') }}</td>
+                            <td>{{ $entry->operator?->name ?? '—' }}</td>
+                            <td>{{ $entry->buyer?->code ?? '—' }} / {{ $entry->sizeVariant?->production_code }}-{{ $entry->sizeVariant?->code }}</td>
+                            <td class="td-num">{{ $entry->good_qty }}</td>
+                            <td class="td-num">{{ $entry->ng_qty }}</td>
+                            <td>
+                                <div class="correction-actions">
+                                    <a class="btn btn-secondary btn-sm" href="/production-entries/{{ $entry->id }}/edit">Edit</a>
+                                    <form method="post" action="/production-entries/{{ $entry->id }}" onsubmit="return confirm('Hapus input ini?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="btn btn-danger btn-sm" type="submit">Hapus</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6"><div class="empty-state"><p>Belum ada input untuk dikoreksi.</p></div></td></tr>
                     @endforelse
                     </tbody>
                 </table>

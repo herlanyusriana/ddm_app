@@ -10,6 +10,9 @@ Route::get('/', [ProductionAdminController::class, 'dashboard']);
 Route::get('/input-proses', [ProductionAdminController::class, 'inputProses'])->name('input.proses');
 Route::get('/input-hasil',  [ProductionAdminController::class, 'inputHasil'])->name('input.hasil');
 Route::post('/production-entries', [ProductionAdminController::class, 'storeProductionEntry'])->name('production-entries.store');
+Route::get('/production-entries/{entry}/edit', [ProductionAdminController::class, 'editProductionEntry'])->name('production-entries.edit');
+Route::put('/production-entries/{entry}', [ProductionAdminController::class, 'updateProductionEntry'])->name('production-entries.update');
+Route::delete('/production-entries/{entry}', [ProductionAdminController::class, 'destroyProductionEntry'])->name('production-entries.destroy');
 Route::get('/rework', [ProductionAdminController::class, 'reworkPage'])->name('rework.index');
 
 // ── Dashboard ──

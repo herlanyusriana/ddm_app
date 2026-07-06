@@ -87,6 +87,19 @@ class ProductionAdminController extends Controller
             ->orderByDesc('production_date')
             ->orderByDesc('start_time')
             ->get();
+        $correctionEntries = ProductionEntry::with(['spk', 'operator', 'buyer', 'sizeVariant', 'process'])
+            ->when($historyProcess, fn ($query) => $query->where('process_id', $historyProcess->id))
+            ->where('shift', $shift)
+            ->when(
+                $historyPeriod === 'monthly',
+                function ($query) use ($productionMonth) {
+                    $monthStart = CarbonImmutable::createFromFormat('Y-m', $productionMonth)->startOfMonth();
+                    $query->whereBetween('production_date', [$monthStart->toDateString(), $monthStart->endOfMonth()->toDateString()]);
+                },
+                fn ($query) => $query->whereDate('production_date', $date),
+            )
+            ->latest()
+            ->get();
 
         return view('production.index', [
             'pageType' => $type,
@@ -110,6 +123,7 @@ class ProductionAdminController extends Controller
             'historyPeriod' => $historyPeriod,
             'productionMonth' => $productionMonth,
             'troubles' => $troubles,
+            'correctionEntries' => $correctionEntries,
         ]);
     }
 
@@ -783,6 +797,57 @@ class ProductionAdminController extends Controller
             ->with('status', 'Trouble produksi tersimpan.');
     }
 
+    public function editProductionEntry(ProductionEntry $entry): View
+    {
+        return view('production.entry-edit', [
+            'entry' => $entry->load(['spk', 'operator', 'buyer', 'sizeVariant', 'process']),
+            'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(),
+            'sizes' => SizeVariant::where('is_active', true)->orderBy('production_code')->orderBy('code')->get(),
+            'operators' => Operator::orderBy('operator_code')->get(),
+        ]);
+    }
+
+    public function updateProductionEntry(Request $request, ProductionEntry $entry): RedirectResponse
+    {
+        $requiresOperator = strcasecmp($entry->process?->name ?? '', 'Binding') === 0;
+        $validated = $request->validate([
+            'buyer_id' => ['required', 'exists:buyers,id'],
+            'size_variant_id' => ['required', 'exists:size_variants,id'],
+            'operator_id' => [$requiresOperator ? 'required' : 'nullable', 'exists:operators,id'],
+            'good_qty' => ['required', 'integer', 'min:0'],
+            'reject_qty' => ['required', 'integer', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        if (($validated['good_qty'] + $validated['reject_qty']) <= 0) {
+            return back()->withErrors(['good_qty' => 'Total produksi harus lebih dari 0.'])->withInput();
+        }
+
+        $entry->update([
+            'buyer_id' => $validated['buyer_id'],
+            'size_variant_id' => $validated['size_variant_id'],
+            'operator_id' => $requiresOperator ? ($validated['operator_id'] ?? null) : null,
+            'good_qty' => $validated['good_qty'],
+            'repairable_qty' => $validated['reject_qty'],
+            'scrap_qty' => 0,
+            'ng_qty' => $validated['reject_qty'],
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        return redirect('/input-proses?'.http_build_query([
+            'process_id' => $entry->process_id,
+            'production_date' => $entry->production_date->toDateString(),
+            'shift' => $entry->shift,
+        ]))->with('status', 'Input produksi berhasil diperbarui.');
+    }
+
+    public function destroyProductionEntry(ProductionEntry $entry): RedirectResponse
+    {
+        $entry->delete();
+
+        return back()->with('status', 'Input produksi berhasil dihapus.');
+    }
+
     public function fgReportPage(Request $request)
     {
         if ($request->query('export') === 'xlsx') {
@@ -1125,8 +1190,25 @@ class ProductionAdminController extends Controller
     private function hourlyTotalsRow($entries, string $date, string $shift, bool $isBinding): array
     {
         $hourTotals = array_map(function ($bucket): string {
-            return 'G: '.(int) ($bucket?->sum('good_qty') ?? 0)
-                .' · R: '.(int) ($bucket?->sum('ng_qty') ?? 0);
+            if (! $bucket) {
+                return "TOTAL G: 0 · R: 0";
+            }
+
+            $styles = $bucket
+                ->groupBy(fn (ProductionEntry $entry) => ($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
+                ->map(function ($group): string {
+                    $first = $group->first();
+                    $size = $first->sizeVariant;
+                    $sizeCode = $size
+                        ? ($size->production_code ? $size->production_code.'-' : '').$size->code
+                        : '—';
+
+                    return ($first->buyer?->code ?? '—').' / '.$sizeCode
+                        .' = '.(int) $group->sum('good_qty');
+                })
+                ->implode("\n");
+
+            return $styles."\nTOTAL G: ".(int) $bucket->sum('good_qty').' · R: '.(int) $bucket->sum('ng_qty');
         }, $this->hourlyEntryBuckets($entries, $date, $shift));
 
         return [
