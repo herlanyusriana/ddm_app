@@ -20,6 +20,12 @@ Route::get('/masters',                 [ProductionAdminController::class, 'maste
 Route::get('/masters/{section}',       [ProductionAdminController::class, 'masters'])
     ->whereIn('section', ['buyers', 'parts', 'sizes', 'mappings', 'processes', 'operators'])
     ->name('masters.section');
+Route::get('/masters/{type}/{id}/edit', [ProductionAdminController::class, 'editMaster'])
+    ->whereIn('type', ['buyers', 'operators', 'parts', 'sizes', 'processes'])
+    ->name('masters.edit');
+Route::put('/masters/{type}/{id}', [ProductionAdminController::class, 'updateMaster'])
+    ->whereIn('type', ['buyers', 'operators', 'parts', 'sizes', 'processes'])
+    ->name('masters.update');
 
 Route::get('/masters/buyers/create',   [ProductionAdminController::class, 'createBuyer'])->name('buyers.create');
 Route::post('/masters/buyers',         [ProductionAdminController::class, 'storeBuyer'])->name('buyers.store');

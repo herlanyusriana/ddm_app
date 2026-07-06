@@ -364,6 +364,48 @@ class ProductionAdminTest extends TestCase
         $processPage->assertDontSee('Tambah Buyer');
     }
 
+    public function test_all_core_master_data_can_be_edited(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'OLD', 'name' => 'Old Buyer']);
+        $operator = Operator::create(['operator_code' => '10', 'name' => 'Old Operator']);
+        $part = Part::factory()->create(['code' => 'OLD-PART', 'name' => 'Old Part']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F', 'point' => 1]);
+        $process = Process::factory()->create(['name' => 'Old Process', 'sort_order' => 9]);
+
+        foreach ([
+            'buyers' => $buyer->id,
+            'operators' => $operator->id,
+            'parts' => $part->id,
+            'sizes' => $size->id,
+            'processes' => $process->id,
+        ] as $type => $id) {
+            $this->get('/masters/'.$type)->assertSee('/masters/'.$type.'/'.$id.'/edit', false);
+            $this->get('/masters/'.$type.'/'.$id.'/edit')->assertOk()->assertSee('Simpan Perubahan');
+        }
+
+        $this->put('/masters/buyers/'.$buyer->id, [
+            'code' => 'NEW', 'name' => 'New Buyer', 'is_active' => 1,
+        ])->assertRedirect('/masters/buyers');
+        $this->put('/masters/operators/'.$operator->id, [
+            'operator_code' => '11', 'name' => 'New Operator', 'target_prod' => 20,
+        ])->assertRedirect('/masters/operators');
+        $this->put('/masters/parts/'.$part->id, [
+            'classification' => 'WIP', 'code' => 'NEW-PART', 'name' => 'New Part',
+        ])->assertRedirect('/masters/parts');
+        $this->put('/masters/sizes/'.$size->id, [
+            'production_code' => 'B', 'code' => '10F', 'point' => 2, 'is_active' => 1,
+        ])->assertRedirect('/masters/sizes');
+        $this->put('/masters/processes/'.$process->id, [
+            'name' => 'New Process', 'sort_order' => 10, 'is_input_process' => 1, 'is_fg_process' => 0,
+        ])->assertRedirect('/masters/processes');
+
+        $this->assertDatabaseHas('buyers', ['id' => $buyer->id, 'code' => 'NEW']);
+        $this->assertDatabaseHas('operators', ['id' => $operator->id, 'operator_code' => '11']);
+        $this->assertDatabaseHas('parts', ['id' => $part->id, 'code' => 'NEW-PART']);
+        $this->assertDatabaseHas('size_variants', ['id' => $size->id, 'production_code' => 'B', 'point' => 2]);
+        $this->assertDatabaseHas('processes', ['id' => $process->id, 'name' => 'New Process']);
+    }
+
     public function test_master_pages_do_not_repeat_sidebar_links_as_top_tabs(): void
     {
         $response = $this->get('/masters/parts');
@@ -1240,7 +1282,10 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('08:30 · AMZ / A-12Q = 12, Reject = 2');
         $page->assertSee('Total Point');
         $page->assertSee('TOTAL PER JAM');
-        $page->assertSee('G: 12 · R: 2');
+        $page->assertSee('G: 12');
+        $page->assertSee('R: 2');
+        $page->assertSee('class="hour-good"', false);
+        $page->assertSee('class="hour-reject"', false);
     }
 
     public function test_non_binding_history_matches_hourly_excel(): void

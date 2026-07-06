@@ -211,6 +211,90 @@ class ProductionAdminController extends Controller
         return view('production.buyer-create');
     }
 
+    public function editMaster(string $type, int $id): View
+    {
+        $record = match ($type) {
+            'buyers' => Buyer::findOrFail($id),
+            'operators' => Operator::findOrFail($id),
+            'parts' => Part::findOrFail($id),
+            'sizes' => SizeVariant::findOrFail($id),
+            'processes' => Process::findOrFail($id),
+        };
+
+        return view('production.master-edit', [
+            'type' => $type,
+            'record' => $record,
+            'buyers' => $type === 'parts'
+                ? Buyer::where('is_active', true)->orderBy('name')->get()
+                : collect(),
+        ]);
+    }
+
+    public function updateMaster(Request $request, string $type, int $id): RedirectResponse
+    {
+        if ($type === 'buyers') {
+            $record = Buyer::findOrFail($id);
+            $record->update($request->validate([
+                'code' => ['required', 'string', 'max:40', Rule::unique('buyers', 'code')->ignore($record->id)],
+                'name' => ['required', 'string', 'max:120'],
+                'is_active' => ['required', 'boolean'],
+            ]));
+        } elseif ($type === 'operators') {
+            $record = Operator::findOrFail($id);
+            $record->update($request->validate([
+                'operator_code' => ['required', 'string', 'max:40', 'regex:/^\d+$/', Rule::unique('operators', 'operator_code')->ignore($record->id)],
+                'name' => ['required', 'string', 'max:120'],
+                'qc_label' => ['nullable', 'string', 'max:40', 'regex:/^\d+$/'],
+                'leader_name' => ['nullable', 'string', 'max:120'],
+                'target_prod' => ['nullable', 'integer', 'min:0'],
+            ]));
+        } elseif ($type === 'parts') {
+            $record = Part::findOrFail($id);
+            $record->update($request->validate([
+                'buyer_id' => ['nullable', 'exists:buyers,id'],
+                'classification' => ['required', Rule::in(['FG', 'WIP', 'RM'])],
+                'code' => ['required', 'string', 'max:60', Rule::unique('parts', 'code')->ignore($record->id)],
+                'name' => ['required', 'string', 'max:160'],
+                'spec' => ['nullable', 'string', 'max:120'],
+                'uom' => ['nullable', 'string', 'max:20'],
+                'width_cm' => ['nullable', 'numeric', 'min:0'],
+                'depth_cm' => ['nullable', 'numeric', 'min:0'],
+                'height_cm' => ['nullable', 'numeric', 'min:0'],
+                'cbm_per_unit' => ['nullable', 'numeric', 'min:0'],
+                'net_weight_pc' => ['nullable', 'numeric', 'min:0'],
+                'gross_weight_pc' => ['nullable', 'numeric', 'min:0'],
+                'package_box' => ['nullable', 'integer', 'min:0'],
+                'item_no' => ['nullable', 'string', 'max:80'],
+                'goods_description' => ['nullable', 'string', 'max:200'],
+            ]));
+        } elseif ($type === 'sizes') {
+            $record = SizeVariant::findOrFail($id);
+            $productionCode = strtoupper((string) $request->input('production_code'));
+            $request->merge(['production_code' => $productionCode]);
+            $record->update($request->validate([
+                'production_code' => ['required', Rule::in(['A', 'B'])],
+                'code' => [
+                    'required', 'string', 'max:40',
+                    Rule::unique('size_variants', 'code')
+                        ->where('production_code', $productionCode)
+                        ->ignore($record->id),
+                ],
+                'point' => ['required', 'numeric', 'min:0'],
+                'is_active' => ['required', 'boolean'],
+            ]));
+        } else {
+            $record = Process::findOrFail($id);
+            $record->update($request->validate([
+                'name' => ['required', 'string', 'max:120', Rule::unique('processes', 'name')->ignore($record->id)],
+                'sort_order' => ['required', 'integer', 'min:0'],
+                'is_input_process' => ['required', 'boolean'],
+                'is_fg_process' => ['required', 'boolean'],
+            ]));
+        }
+
+        return redirect('/masters/'.$type)->with('status', 'Master data berhasil diperbarui.');
+    }
+
     public function createOperator(): View
     {
         return view('production.operator-create');

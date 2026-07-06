@@ -96,6 +96,14 @@
         font-weight: 800;
     }
 
+    .hour-good {
+        color: var(--success);
+    }
+
+    .hour-reject {
+        color: var(--danger);
+    }
+
     .trouble-history-panel {
         grid-column: 2;
         min-width: 0;
@@ -253,7 +261,7 @@
                                     <option
                                         value="{{ $operator->operator_code }} · {{ $operator->name }}"
                                         data-operator-id="{{ $operator->id }}"
-                                    >Target {{ number_format($operator->target_prod ?? 0) }}</option>
+                                    ></option>
                                 @endforeach
                             </datalist>
                             <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
@@ -356,7 +364,13 @@
                             <tr>
                                 @foreach($hourlyReport['totals_row'] as $index => $cell)
                                     <td class="{{ str_starts_with($hourlyReport['headers'][$index] ?? '', 'Total ') ? 'td-num' : '' }}">
-                                        {{ $cell }}
+                                        @if(preg_match('/^G: (\d+) · R: (\d+)$/', (string) $cell, $totals))
+                                            <span class="hour-good">G: {{ $totals[1] }}</span>
+                                            <span> · </span>
+                                            <span class="hour-reject">R: {{ $totals[2] }}</span>
+                                        @else
+                                            {{ $cell }}
+                                        @endif
                                     </td>
                                 @endforeach
                             </tr>

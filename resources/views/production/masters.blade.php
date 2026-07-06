@@ -101,6 +101,7 @@
                             <form class="master-actions" method="post" action="/masters/buyers/{{ $buyer->id }}" onsubmit="return confirm('Hapus buyer {{ $buyer->code }}?')">
                                 @csrf
                                 @method('DELETE')
+                                <a class="btn btn-secondary btn-sm" href="/masters/buyers/{{ $buyer->id }}/edit">Edit</a>
                                 <button class="btn btn-danger btn-sm" type="submit">Hapus</button>
                             </form>
                         </td>
@@ -144,6 +145,7 @@
                             <form class="master-actions" method="post" action="/masters/operators/{{ $operator->id }}" onsubmit="return confirm('Hapus operator {{ $operator->operator_code }}?')">
                                 @csrf
                                 @method('DELETE')
+                                <a class="btn btn-secondary btn-sm" href="/masters/operators/{{ $operator->id }}/edit">Edit</a>
                                 <button class="btn btn-danger btn-sm" type="submit">Hapus</button>
                             </form>
                         </td>
@@ -208,6 +210,7 @@
                             <form class="master-actions" method="post" action="/masters/parts/{{ $part->id }}" onsubmit="return confirm('Hapus part {{ $part->code }}?')">
                                 @csrf
                                 @method('DELETE')
+                                <a class="btn btn-secondary btn-sm" href="/masters/parts/{{ $part->id }}/edit">Edit</a>
                                 <button class="btn btn-danger btn-sm" type="submit">Hapus</button>
                             </form>
                         </td>
@@ -249,6 +252,7 @@
                             <form class="master-actions" method="post" action="/masters/sizes/{{ $size->id }}" onsubmit="return confirm('Hapus size {{ $size->code }}?')">
                                 @csrf
                                 @method('DELETE')
+                                <a class="btn btn-secondary btn-sm" href="/masters/sizes/{{ $size->id }}/edit">Edit</a>
                                 <button class="btn btn-danger btn-sm" type="submit">Hapus</button>
                             </form>
                         </td>
@@ -281,7 +285,7 @@
         <div class="panel-header"><h2>Process Master</h2><span class="badge badge-neutral">Alur produksi</span></div>
         <div class="master-table-wrap">
             <table class="master-table">
-                <thead><tr><th>Urutan</th><th>Proses</th><th>Input Good/Reject</th><th>FG</th></tr></thead>
+                <thead><tr><th>Urutan</th><th>Proses</th><th>Input Good/Reject</th><th>FG</th><th class="master-actions-cell">Aksi</th></tr></thead>
                 <tbody>
                 @forelse($processes as $process)
                     <tr>
@@ -289,9 +293,10 @@
                         <td><span class="master-primary">{{ $process->name }}</span></td>
                         <td><span class="master-chip {{ $process->is_input_process ? 'chip-fg' : 'chip-neutral' }}">{{ $process->is_input_process ? 'Ya' : 'Tidak' }}</span></td>
                         <td><span class="master-chip {{ $process->is_fg_process ? 'chip-rm' : 'chip-neutral' }}">{{ $process->is_fg_process ? 'Ya' : 'Tidak' }}</span></td>
+                        <td class="master-actions-cell"><a class="btn btn-secondary btn-sm" href="/masters/processes/{{ $process->id }}/edit">Edit</a></td>
                     </tr>
                 @empty
-                    <tr><td colspan="4"><div class="master-empty"><strong>Belum ada proses.</strong>Jalankan seeder proses produksi.</div></td></tr>
+                    <tr><td colspan="5"><div class="master-empty"><strong>Belum ada proses.</strong>Jalankan seeder proses produksi.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>
