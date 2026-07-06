@@ -606,6 +606,12 @@
                 <a class="nav-link {{ request()->is('rework') ? 'active' : '' }}" href="/rework">
                     <span class="icon">🔧</span> Rework
                 </a>
+                <a class="nav-link {{ request()->is('rework-results*') ? 'active' : '' }}" href="/rework-results">
+                    <span class="icon">🧵</span> Input Hasil Rework
+                </a>
+                <a class="nav-link {{ request()->is('binding-reject-stock*') ? 'active' : '' }}" href="/binding-reject-stock">
+                    <span class="icon">📦</span> Data Reject Binding
+                </a>
             </div>
 
             <div class="nav-divider"></div>
