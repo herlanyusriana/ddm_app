@@ -1448,6 +1448,50 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('production_entries', ['id' => $entry->id]);
     }
 
+    public function test_binding_hourly_totals_show_target_sum_and_operator_count(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
+        $process = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        $operatorOneId = DB::table('operators')->insertGetId([
+            'operator_code' => '31',
+            'name' => 'Operator Satu',
+            'target_prod' => 3,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $operatorTwoId = DB::table('operators')->insertGetId([
+            'operator_code' => '32',
+            'name' => 'Operator Dua',
+            'target_prod' => 2,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'process_id' => $process->id, 'operator_id' => $operatorOneId,
+            'good_qty' => 4, 'ng_qty' => 0,
+            'created_at' => '2026-07-05 01:10:00',
+        ]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '1',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'process_id' => $process->id, 'operator_id' => $operatorTwoId,
+            'good_qty' => 6, 'ng_qty' => 1,
+            'created_at' => '2026-07-05 01:20:00',
+        ]);
+
+        $page = $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+
+        $page->assertOk();
+        $page->assertSee('Target: 5');
+        $page->assertSee('Operator: 2');
+        $page->assertSee('G: 10');
+        $page->assertSee('R: 1');
+    }
+
     public function test_binding_reject_stock_card_tracks_balance_and_supports_edit_delete_export(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);

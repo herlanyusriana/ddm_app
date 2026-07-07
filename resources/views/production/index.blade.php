@@ -104,6 +104,12 @@
         color: var(--danger);
     }
 
+    .hour-meta {
+        color: var(--ink2);
+        font-weight: 800;
+        margin-top: 3px;
+    }
+
     .correction-actions {
         display: flex;
         gap: 6px;
@@ -378,6 +384,8 @@
                                                         <span> · </span>
                                                         <span class="hour-reject">R: {{ $totals[2] }}</span>
                                                     </div>
+                                                @elseif(preg_match('/^(Target|Operator): (.+)$/', $line, $meta))
+                                                    <div class="hour-meta">{{ $meta[1] }}: {{ $meta[2] }}</div>
                                                 @else
                                                     <div>{{ $line }}</div>
                                                 @endif
