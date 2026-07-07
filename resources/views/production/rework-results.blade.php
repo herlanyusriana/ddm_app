@@ -12,7 +12,28 @@
     <div class="panel-body">
         <form class="form-grid" method="post" action="{{ $editResult ? '/rework-results/'.$editResult->id : '/rework-results' }}">
             @csrf @if($editResult) @method('PUT') @endif
-            <div class="field"><label>Sumber Reject / Style</label><select name="production_entry_id" required><option value="">— Pilih sumber reject —</option>@foreach($sources as $source)<option value="{{ $source->id }}" @selected(old('production_entry_id', $editResult?->production_entry_id) == $source->id)>{{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · {{ $source->process?->name }} · Sisa {{ $source->remaining_rework }}</option>@endforeach</select></div>
+            <div class="field">
+                <label>Sumber Reject / Style</label>
+                <select data-rework-source-select required>
+                    <option value="">— Pilih sumber reject —</option>
+                    <optgroup label="Reject Produksi">
+                        @foreach($productionSources as $source)
+                            <option value="production:{{ $source->id }}" @selected(old('production_entry_id', $editResult?->production_entry_id) == $source->id)>
+                                {{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · {{ $source->process?->name }} · Sisa {{ $source->remaining_rework }}
+                            </option>
+                        @endforeach
+                    </optgroup>
+                    <optgroup label="Reject Binding">
+                        @foreach($bindingSources as $source)
+                            <option value="binding:{{ $source->id }}" @selected(old('binding_reject_stock_id', $editResult?->binding_reject_stock_id) == $source->id)>
+                                {{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · Reject Binding · Sisa {{ $source->remaining_rework }}
+                            </option>
+                        @endforeach
+                    </optgroup>
+                </select>
+                <input type="hidden" name="production_entry_id" value="{{ old('production_entry_id', $editResult?->production_entry_id) }}" data-production-entry-source>
+                <input type="hidden" name="binding_reject_stock_id" value="{{ old('binding_reject_stock_id', $editResult?->binding_reject_stock_id) }}" data-binding-stock-source>
+            </div>
             <div class="field"><label>Tanggal</label><input type="date" name="result_date" value="{{ old('result_date', $editResult?->result_date?->toDateString() ?? $date) }}" required></div>
             <div class="form-row-2">
                 <div class="field"><label>Bagian</label><select name="component" required>@foreach(['Topper','Border','Bottom'] as $component)<option value="{{ $component }}" @selected(old('component', $editResult?->component) === $component)>{{ $component }}</option>@endforeach</select></div>
@@ -28,7 +49,7 @@
 <section class="panel">
     <div class="panel-header"><h2>Hasil Rework</h2><span class="badge badge-neutral">{{ $results->count() }} records</span></div>
     <div class="table-wrap"><table><thead><tr><th>Style</th><th>Bagian</th><th>Qty</th><th>Operator</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
-    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code }}</td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px"><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
+    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px"><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
     @empty<tr><td colspan="6"><div class="empty-state"><p>Belum ada hasil rework.</p></div></td></tr>@endforelse
     </tbody></table></div>
 </section>
@@ -38,5 +59,12 @@ const reworkOperatorSearch=document.querySelector('[data-rework-operator-search]
 const reworkOperatorId=document.querySelector('[data-rework-operator-id]');
 const reworkOperatorOptions=Array.from(document.querySelectorAll('#rework-operators option'));
 reworkOperatorSearch?.addEventListener('input',()=>{const selected=reworkOperatorOptions.find(option=>option.value===reworkOperatorSearch.value);reworkOperatorId.value=selected?.dataset.id||'';reworkOperatorSearch.setCustomValidity(selected?'':'Pilih operator dari suggestion.');});
+const reworkSourceSelect=document.querySelector('[data-rework-source-select]');
+const productionEntrySource=document.querySelector('[data-production-entry-source]');
+const bindingStockSource=document.querySelector('[data-binding-stock-source]');
+function syncReworkSource(){const [type,id]=(reworkSourceSelect?.value||'').split(':');productionEntrySource.value=type==='production'?id||'':'';bindingStockSource.value=type==='binding'?id||'':'';}
+if(reworkSourceSelect&&!reworkSourceSelect.value){if(productionEntrySource.value){reworkSourceSelect.value='production:'+productionEntrySource.value;}else if(bindingStockSource.value){reworkSourceSelect.value='binding:'+bindingStockSource.value;}}
+reworkSourceSelect?.addEventListener('change',syncReworkSource);
+syncReworkSource();
 </script>
 @endsection

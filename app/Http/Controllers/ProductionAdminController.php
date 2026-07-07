@@ -237,7 +237,7 @@ class ProductionAdminController extends Controller
     private function reworkResultsView(Request $request, ?ReworkResult $editResult = null): View
     {
         $date = (string) $request->query('date', now('Asia/Jakarta')->toDateString());
-        $sources = ProductionEntry::with(['buyer', 'sizeVariant', 'process', 'spk'])
+        $productionSources = ProductionEntry::with(['buyer', 'sizeVariant', 'process', 'spk'])
             ->where('repairable_qty', '>', 0)->latest()->get()
             ->map(function (ProductionEntry $entry) use ($editResult) {
                 $used = (int) ReworkResult::where('production_entry_id', $entry->id)
@@ -246,12 +246,22 @@ class ProductionAdminController extends Controller
                 $entry->setAttribute('remaining_rework', max(0, (int) $entry->repairable_qty - $used));
                 return $entry;
             })->filter(fn ($entry) => $entry->remaining_rework > 0 || $editResult?->production_entry_id === $entry->id);
+        $bindingSources = BindingRejectStock::with(['buyer', 'sizeVariant'])
+            ->latest('transaction_date')->latest('id')->get()
+            ->map(function (BindingRejectStock $stock) use ($editResult) {
+                $used = (int) ReworkResult::where('binding_reject_stock_id', $stock->id)
+                    ->when($editResult, fn ($query) => $query->where('id', '!=', $editResult->id))
+                    ->sum('qty');
+                $stock->setAttribute('remaining_rework', max(0, (int) $stock->qty_in - (int) $stock->qty_out - $used));
+                return $stock;
+            })->filter(fn ($stock) => $stock->remaining_rework > 0 || $editResult?->binding_reject_stock_id === $stock->id);
 
         return view('production.rework-results', [
             'date' => $date,
-            'sources' => $sources,
+            'productionSources' => $productionSources,
+            'bindingSources' => $bindingSources,
             'operators' => Operator::orderBy('operator_code')->get(),
-            'results' => ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'operator'])
+            'results' => ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'bindingRejectStock.buyer', 'bindingRejectStock.sizeVariant', 'operator'])
                 ->whereDate('result_date', $date)->latest()->get(),
             'editResult' => $editResult,
         ]);
@@ -272,17 +282,35 @@ class ProductionAdminController extends Controller
     private function validatedReworkResult(Request $request, ?ReworkResult $current = null): array
     {
         $validated = $request->validate([
-            'production_entry_id' => ['required', 'exists:production_entries,id'],
+            'production_entry_id' => ['nullable', 'exists:production_entries,id'],
+            'binding_reject_stock_id' => ['nullable', 'exists:binding_reject_stocks,id'],
             'result_date' => ['required', 'date'],
             'component' => ['required', Rule::in(['Topper', 'Border', 'Bottom'])],
             'qty' => ['required', 'integer', 'min:1'],
             'operator_id' => ['required', 'exists:operators,id'],
             'reject_notes' => ['required', 'string', 'max:500'],
         ]);
-        $source = ProductionEntry::findOrFail($validated['production_entry_id']);
-        $used = (int) ReworkResult::where('production_entry_id', $source->id)
-            ->when($current, fn ($query) => $query->where('id', '!=', $current->id))->sum('qty');
-        $remaining = max(0, (int) $source->repairable_qty - $used);
+        $productionEntryId = $validated['production_entry_id'] ?? null;
+        $bindingRejectStockId = $validated['binding_reject_stock_id'] ?? null;
+
+        if (($productionEntryId && $bindingRejectStockId) || (! $productionEntryId && ! $bindingRejectStockId)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['production_entry_id' => 'Pilih salah satu sumber reject.']);
+        }
+
+        if ($productionEntryId) {
+            $source = ProductionEntry::findOrFail($productionEntryId);
+            $used = (int) ReworkResult::where('production_entry_id', $source->id)
+                ->when($current, fn ($query) => $query->where('id', '!=', $current->id))->sum('qty');
+            $remaining = max(0, (int) $source->repairable_qty - $used);
+            $validated['binding_reject_stock_id'] = null;
+        } else {
+            $source = BindingRejectStock::findOrFail($bindingRejectStockId);
+            $used = (int) ReworkResult::where('binding_reject_stock_id', $source->id)
+                ->when($current, fn ($query) => $query->where('id', '!=', $current->id))->sum('qty');
+            $remaining = max(0, (int) $source->qty_in - (int) $source->qty_out - $used);
+            $validated['production_entry_id'] = null;
+        }
+
         if ((int) $validated['qty'] > $remaining) {
             throw \Illuminate\Validation\ValidationException::withMessages(['qty' => "Qty melebihi sisa hutang rework ({$remaining})."]);
         }
@@ -298,17 +326,18 @@ class ProductionAdminController extends Controller
     public function exportReworkResults(Request $request): Response
     {
         $date = (string) $request->query('date', now('Asia/Jakarta')->toDateString());
-        $rows = ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'operator'])
+        $rows = ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'bindingRejectStock.buyer', 'bindingRejectStock.sizeVariant', 'operator'])
             ->whereDate('result_date', $date)->get()->map(fn ($result) => [
-                $result->productionEntry?->buyer?->code,
-                $result->productionEntry?->sizeVariant?->code,
+                $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code,
+                $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code,
+                $result->productionEntry ? 'Reject Produksi' : 'Reject Binding',
                 $result->component,
                 $result->qty,
                 $result->operator?->operator_code,
                 $result->operator?->name,
                 $result->reject_notes,
             ]);
-        return $this->xlsxResponse('hasil_rework_'.$date.'.xlsx', 'Hasil Rework', ['Buyer', 'Style', 'Bagian', 'Qty', 'No Operator', 'Nama Operator', 'Keterangan Reject'], $rows);
+        return $this->xlsxResponse('hasil_rework_'.$date.'.xlsx', 'Hasil Rework', ['Buyer', 'Style', 'Sumber', 'Bagian', 'Qty', 'No Operator', 'Nama Operator', 'Keterangan Reject'], $rows);
     }
 
     public function bindingRejectStockPage(Request $request): View

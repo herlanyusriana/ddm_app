@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Buyer;
+use App\Models\BindingRejectStock;
 use App\Models\Operator;
 use App\Models\Part;
 use App\Models\Process;
@@ -1614,6 +1615,55 @@ class ProductionAdminTest extends TestCase
         $this->delete('/rework-results/'.$resultId)->assertRedirect();
         $this->assertDatabaseMissing('rework_results', ['id' => $resultId]);
         $this->get('/rework')->assertSee('5');
+    }
+
+    public function test_binding_reject_stock_can_be_processed_as_rework_result(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['code' => '8T']);
+        $operator = Operator::create(['operator_code' => '24', 'name' => 'Rework Op']);
+        $stock = BindingRejectStock::create([
+            'transaction_date' => '2026-07-06',
+            'transaction_time' => '08:00',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'qty_in' => 10,
+            'qty_out' => 2,
+            'paraf' => 'Dodi',
+        ]);
+
+        $this->get('/rework-results?date=2026-07-07')
+            ->assertOk()
+            ->assertSee('Reject Binding')
+            ->assertSee('AMZ / 8T')
+            ->assertSee('Sisa 8');
+
+        $this->post('/rework-results', [
+            'binding_reject_stock_id' => $stock->id,
+            'result_date' => '2026-07-07',
+            'component' => 'Border',
+            'qty' => 3,
+            'operator_id' => $operator->id,
+            'reject_notes' => 'Jahit ulang',
+        ])->assertRedirect('/rework-results?date=2026-07-07');
+
+        $this->assertDatabaseHas('rework_results', [
+            'production_entry_id' => null,
+            'binding_reject_stock_id' => $stock->id,
+            'qty' => 3,
+        ]);
+        $this->get('/rework-results?date=2026-07-07')->assertSee('Sisa 5');
+        $this->post('/rework-results', [
+            'binding_reject_stock_id' => $stock->id,
+            'result_date' => '2026-07-07',
+            'component' => 'Border',
+            'qty' => 6,
+            'operator_id' => $operator->id,
+            'reject_notes' => 'Lebih',
+        ])->assertSessionHasErrors('qty');
+        $export = $this->get('/rework-results-export?date=2026-07-07');
+        $export->assertOk();
+        $this->assertStringContainsString('Reject Binding', $this->xlsxSheetXml($export->getContent()));
     }
 
     public function test_fg_input_filters_parts_by_selected_spk_buyer(): void
