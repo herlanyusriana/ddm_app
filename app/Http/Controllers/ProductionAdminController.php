@@ -269,8 +269,8 @@ class ProductionAdminController extends Controller
 
     public function storeReworkResult(Request $request): RedirectResponse
     {
-        ReworkResult::create($this->validatedReworkResult($request));
-        return redirect('/rework-results?date='.$request->input('result_date'))->with('status', 'Hasil rework tersimpan.');
+        $result = ReworkResult::create($this->validatedReworkResult($request));
+        return redirect('/rework-results/'.$result->id.'/additional-print?date='.$request->input('result_date'))->with('status', 'Hasil rework tersimpan.');
     }
 
     public function updateReworkResult(Request $request, ReworkResult $result): RedirectResponse
@@ -338,6 +338,16 @@ class ProductionAdminController extends Controller
                 $result->reject_notes,
             ]);
         return $this->xlsxResponse('hasil_rework_'.$date.'.xlsx', 'Hasil Rework', ['Buyer', 'Style', 'Sumber', 'Bagian', 'Qty', 'No Operator', 'Nama Operator', 'Keterangan Reject'], $rows);
+    }
+
+    public function printReworkAdditional(Request $request, ReworkResult $result): View
+    {
+        $result->load(['productionEntry.buyer', 'productionEntry.sizeVariant', 'productionEntry.process', 'bindingRejectStock.buyer', 'bindingRejectStock.sizeVariant', 'operator']);
+
+        return view('production.rework-additional-print', [
+            'result' => $result,
+            'date' => (string) $request->query('date', $result->result_date?->toDateString() ?? now('Asia/Jakarta')->toDateString()),
+        ]);
     }
 
     public function bindingRejectStockPage(Request $request): View

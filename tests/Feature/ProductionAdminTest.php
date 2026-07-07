@@ -1602,8 +1602,15 @@ class ProductionAdminTest extends TestCase
         $this->post('/rework-results', [
             'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
             'component' => 'Bottom', 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
-        ])->assertRedirect('/rework-results?date=2026-07-07');
+        ])->assertRedirect('/rework-results/1/additional-print?date=2026-07-07');
         $resultId = DB::table('rework_results')->value('id');
+        $this->get('/rework-results/'.$resultId.'/additional-print?date=2026-07-07')
+            ->assertOk()
+            ->assertSee('Form Additional')
+            ->assertSee('PT DAYA DAIJANG MIDAS')
+            ->assertSee('Jahit ulang')
+            ->assertSee('AMZ / 6T')
+            ->assertSee('window.print()', false);
         $this->get('/rework')->assertSee('3');
         $this->get('/rework-results/'.$resultId.'/edit?date=2026-07-07')->assertOk();
         $this->put('/rework-results/'.$resultId, [
@@ -1645,7 +1652,7 @@ class ProductionAdminTest extends TestCase
             'qty' => 3,
             'operator_id' => $operator->id,
             'reject_notes' => 'Jahit ulang',
-        ])->assertRedirect('/rework-results?date=2026-07-07');
+        ])->assertRedirect('/rework-results/1/additional-print?date=2026-07-07');
 
         $this->assertDatabaseHas('rework_results', [
             'production_entry_id' => null,
