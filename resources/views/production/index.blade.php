@@ -197,31 +197,6 @@
                     </div>
                 </div>
 
-                @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
-                    <div class="field" data-production-mode-fields>
-                        <label>Operator Binding</label>
-                        <input
-                            name="operator_search"
-                            list="operator-suggestions"
-                            value="{{ old('operator_search') }}"
-                            placeholder="Ketik nomor atau nama operator..."
-                            autocomplete="off"
-                            data-operator-search
-                            required
-                        >
-                        <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id>
-                        <datalist id="operator-suggestions">
-                            @foreach($operators as $operator)
-                                <option
-                                    value="{{ $operator->operator_code }} · {{ $operator->name }}"
-                                    data-operator-id="{{ $operator->id }}"
-                                ></option>
-                            @endforeach
-                        </datalist>
-                        <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
-                    </div>
-                @endif
-
                 <div data-custom-production-fields data-production-mode-fields data-page-type="{{ $pageType }}" class="form-grid">
                     <div class="field">
                         <label>Kode Buyer</label>
@@ -279,6 +254,30 @@
                         <label>Proses aktif</label>
                         <div class="readonly-pill">{{ $selectedProcess->name }}</div>
                     </div>
+                    @if(strcasecmp($selectedProcess->name, 'Binding') === 0)
+                        <div class="field" data-production-mode-fields>
+                            <label>Operator Binding</label>
+                            <input
+                                name="operator_search"
+                                list="operator-suggestions"
+                                value="{{ old('operator_search') }}"
+                                placeholder="Ketik nomor atau nama operator..."
+                                autocomplete="off"
+                                data-operator-search
+                                required
+                            >
+                            <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id>
+                            <datalist id="operator-suggestions">
+                                @foreach($operators as $operator)
+                                    <option
+                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
+                                        data-operator-id="{{ $operator->id }}"
+                                    ></option>
+                                @endforeach
+                            </datalist>
+                            <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
+                        </div>
+                    @endif
                 @else
                     <div>
                         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Pilih Proses</div>
