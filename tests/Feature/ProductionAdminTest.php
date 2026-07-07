@@ -1081,6 +1081,23 @@ class ProductionAdminTest extends TestCase
         );
     }
 
+    public function test_binding_operator_field_is_before_master_data_fields(): void
+    {
+        Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        Buyer::factory()->create(['code' => 'AMZ']);
+        SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
+        Operator::create(['operator_code' => '41', 'name' => 'Operator Awal']);
+
+        $page = $this->get('/input-proses');
+
+        $page->assertOk();
+        $content = $page->getContent();
+        $this->assertLessThan(
+            strpos($content, '<label>Kode Buyer</label>'),
+            strpos($content, '<label>Operator Binding</label>')
+        );
+    }
+
     public function test_custom_wip_entry_persists_master_data_without_spk(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);
