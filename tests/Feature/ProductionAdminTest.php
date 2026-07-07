@@ -881,6 +881,7 @@ class ProductionAdminTest extends TestCase
             'process_id' => $sewing->id,
             'good_qty' => 10,
             'ng_qty' => 1,
+            'reject_reason' => 'Pembersihan',
         ]);
 
         $sewingResponse->assertSessionHasNoErrors();
@@ -969,6 +970,7 @@ class ProductionAdminTest extends TestCase
             'process_id' => $process->id,
             'good_qty' => 20,
             'reject_qty' => 10,
+            'reject_reason' => 'Pembersihan',
         ]);
 
         $ok->assertSessionHasNoErrors();
@@ -1114,6 +1116,7 @@ class ProductionAdminTest extends TestCase
             'process_id' => $process->id,
             'good_qty' => 20,
             'reject_qty' => 2,
+            'reject_reason' => 'Pembersihan',
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -1199,6 +1202,7 @@ class ProductionAdminTest extends TestCase
             'production_date' => '2026-07-05', 'shift' => '1',
             'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
             'process_id' => $binding->id, 'good_qty' => 10, 'reject_qty' => 1,
+            'reject_reason' => 'Pembersihan',
         ]);
         $missing->assertSessionHasErrors('operator_id');
 
@@ -1207,6 +1211,7 @@ class ProductionAdminTest extends TestCase
             'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
             'operator_id' => $operator->id, 'process_id' => $binding->id,
             'good_qty' => 10, 'reject_qty' => 1,
+            'reject_reason' => 'Pembersihan',
         ]);
         $bindingEntry->assertSessionHasNoErrors();
         $this->assertDatabaseHas('production_entries', [
@@ -1453,6 +1458,7 @@ class ProductionAdminTest extends TestCase
             'size_variant_id' => $newSize->id,
             'good_qty' => 7,
             'reject_qty' => 2,
+            'reject_reason' => 'Pembersihan',
         ])->assertRedirect();
         $this->assertDatabaseHas('production_entries', [
             'id' => $entry->id,
@@ -1584,6 +1590,7 @@ class ProductionAdminTest extends TestCase
             'process_id' => $process->id,
             'good_qty' => 80,
             'reject_qty' => 5,
+            'reject_reason' => 'Pembersihan',
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -1602,6 +1609,58 @@ class ProductionAdminTest extends TestCase
         $rework->assertSee('SPK-RWK-001');
         $rework->assertSee('Sewing');
         $rework->assertSee('5');
+    }
+
+    public function test_reject_input_requires_reason_and_displays_it_in_history(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
+        $process = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        $operator = Operator::create(['operator_code' => '71', 'name' => 'Operator Reject']);
+
+        $this->get('/input-proses?process_id='.$process->id)
+            ->assertOk()
+            ->assertSee('Alasan Reject')
+            ->assertSee('Pembersihan')
+            ->assertSee('Jahitan Jebol');
+
+        \Carbon\Carbon::setTestNow('2026-07-07 01:30:00');
+        $this->post('/production-entries', [
+            'production_date' => '2026-07-07',
+            'shift' => '1',
+            'process_id' => $process->id,
+            'operator_id' => $operator->id,
+            'buyer_id' => $buyer->id,
+            'production_code' => 'A',
+            'size_variant_id' => $size->id,
+            'good_qty' => 0,
+            'reject_qty' => 1,
+        ])->assertSessionHasErrors('reject_reason');
+
+        $this->post('/production-entries', [
+            'production_date' => '2026-07-07',
+            'shift' => '1',
+            'process_id' => $process->id,
+            'operator_id' => $operator->id,
+            'buyer_id' => $buyer->id,
+            'production_code' => 'A',
+            'size_variant_id' => $size->id,
+            'good_qty' => 0,
+            'reject_qty' => 2,
+            'reject_reason' => 'Bongkar',
+        ])->assertRedirect();
+        \Carbon\Carbon::setTestNow();
+
+        $this->assertDatabaseHas('production_entries', [
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'ng_qty' => 2,
+            'reject_reason' => 'Bongkar',
+        ]);
+
+        $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-07&shift=1')
+            ->assertOk()
+            ->assertSee('Alasan: Bongkar');
     }
 
     public function test_rework_result_reduces_debt_and_supports_edit_delete_export(): void
@@ -1758,6 +1817,7 @@ class ProductionAdminTest extends TestCase
             'process_id' => $packing->id,
             'good_qty' => 60,
             'reject_qty' => 10,
+            'reject_reason' => 'Pembersihan',
         ]);
 
         $firstResponse->assertSessionHasNoErrors();
@@ -1806,6 +1866,7 @@ class ProductionAdminTest extends TestCase
             'process_id' => $packing->id,
             'good_qty' => 60,
             'reject_qty' => 10,
+            'reject_reason' => 'Pembersihan',
         ]);
 
         $response = $this->postJson('/api/production-entries', [

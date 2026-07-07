@@ -126,6 +126,7 @@ class ProductionAdminController extends Controller
             'productionMonth' => $productionMonth,
             'troubles' => $troubles,
             'correctionEntries' => $correctionEntries,
+            'rejectReasons' => $this->rejectReasonOptions(),
         ]);
     }
 
@@ -938,14 +939,22 @@ class ProductionAdminController extends Controller
             'good_qty' => ['required', 'integer', 'min:0'],
             'repairable_qty' => ['required', 'integer', 'min:0'],
             'scrap_qty' => ['required', 'integer', 'min:0'],
+            'reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
             'notes' => ['nullable', 'string', 'max:200'],
         ]);
 
         $validated['ng_qty'] = $validated['repairable_qty'] + $validated['scrap_qty'];
+        $validated['reject_reason'] = $validated['ng_qty'] > 0 ? ($validated['reject_reason'] ?? null) : null;
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
             return back()
                 ->withErrors(['good_qty' => 'Total produksi (Good + Reject) harus lebih dari 0.'])
+                ->withInput();
+        }
+
+        if ($validated['ng_qty'] > 0 && ! $validated['reject_reason']) {
+            return back()
+                ->withErrors(['reject_reason' => 'Alasan reject wajib dipilih jika Reject lebih dari 0.'])
                 ->withInput();
         }
 
@@ -1053,6 +1062,7 @@ class ProductionAdminController extends Controller
             'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(),
             'sizes' => SizeVariant::where('is_active', true)->orderBy('production_code')->orderBy('code')->get(),
             'operators' => Operator::orderBy('operator_code')->get(),
+            'rejectReasons' => $this->rejectReasonOptions(),
         ]);
     }
 
@@ -1065,11 +1075,16 @@ class ProductionAdminController extends Controller
             'operator_id' => [$requiresOperator ? 'required' : 'nullable', 'exists:operators,id'],
             'good_qty' => ['required', 'integer', 'min:0'],
             'reject_qty' => ['required', 'integer', 'min:0'],
+            'reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
             'notes' => ['nullable', 'string', 'max:200'],
         ]);
 
         if (($validated['good_qty'] + $validated['reject_qty']) <= 0) {
             return back()->withErrors(['good_qty' => 'Total produksi harus lebih dari 0.'])->withInput();
+        }
+
+        if ((int) $validated['reject_qty'] > 0 && empty($validated['reject_reason'])) {
+            return back()->withErrors(['reject_reason' => 'Alasan reject wajib dipilih jika Reject lebih dari 0.'])->withInput();
         }
 
         $entry->update([
@@ -1080,6 +1095,7 @@ class ProductionAdminController extends Controller
             'repairable_qty' => $validated['reject_qty'],
             'scrap_qty' => 0,
             'ng_qty' => $validated['reject_qty'],
+            'reject_reason' => (int) $validated['reject_qty'] > 0 ? ($validated['reject_reason'] ?? null) : null,
             'notes' => $validated['notes'] ?? null,
         ]);
 
@@ -1231,13 +1247,19 @@ class ProductionAdminController extends Controller
             'good_qty' => ['required', 'integer', 'min:0'],
             'repairable_qty' => ['required', 'integer', 'min:0'],
             'scrap_qty' => ['required', 'integer', 'min:0'],
+            'reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
             'notes' => ['nullable', 'string', 'max:200'],
         ]);
 
         $validated['ng_qty'] = $validated['repairable_qty'] + $validated['scrap_qty'];
+        $validated['reject_reason'] = $validated['ng_qty'] > 0 ? ($validated['reject_reason'] ?? null) : null;
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
             return response()->json(['message' => 'Total produksi (Good + Reject) harus lebih dari 0.'], 422);
+        }
+
+        if ($validated['ng_qty'] > 0 && ! $validated['reject_reason']) {
+            return response()->json(['message' => 'Alasan reject wajib dipilih jika Reject lebih dari 0.', 'errors' => ['reject_reason' => ['Alasan reject wajib dipilih jika Reject lebih dari 0.']]], 422);
         }
 
         if ($spk && $process) {
@@ -1583,8 +1605,15 @@ class ProductionAdminController extends Controller
                     ? ($size->production_code ? $size->production_code.'-' : '').$size->code
                     : '—';
 
+                $rejectReasons = $group
+                    ->pluck('reject_reason')
+                    ->filter()
+                    ->unique()
+                    ->implode(', ');
+
                 return $this->entryInputTime($first).' · '.($first->buyer?->code ?? '—').' / '.$sizeCode
-                    .' = '.(int) $group->sum('good_qty').', Reject = '.(int) $group->sum('ng_qty');
+                    .' = '.(int) $group->sum('good_qty').', Reject = '.(int) $group->sum('ng_qty')
+                    .($rejectReasons ? ' · Alasan: '.$rejectReasons : '');
             })
             ->implode("\n");
     }
@@ -1597,8 +1626,13 @@ class ProductionAdminController extends Controller
 
         return $entries
             ->groupBy(fn (ProductionEntry $entry) => $this->entryInputTime($entry))
-            ->map(fn ($group) => $this->entryInputTime($group->first()).' · Good = '.(int) $group->sum('good_qty')
-                .', Reject = '.(int) $group->sum('ng_qty'))
+            ->map(function ($group) {
+                $rejectReasons = $group->pluck('reject_reason')->filter()->unique()->implode(', ');
+
+                return $this->entryInputTime($group->first()).' · Good = '.(int) $group->sum('good_qty')
+                    .', Reject = '.(int) $group->sum('ng_qty')
+                    .($rejectReasons ? ' · Alasan: '.$rejectReasons : '');
+            })
             ->implode("\n");
     }
 
@@ -1835,6 +1869,11 @@ class ProductionAdminController extends Controller
             '2' => ['label' => 'Shift 2', 'time' => '16:00-24:00', 'greeting' => 'Selamat malam'],
             '3' => ['label' => 'Shift 3', 'time' => '00:00-08:00', 'greeting' => 'Selamat pagi'],
         ];
+    }
+
+    private function rejectReasonOptions(): array
+    {
+        return ['Pembersihan', 'Bongkar', 'Jahitan Jebol', 'Label Salah', 'Lain-lain'];
     }
 
     private function productionWindow(Request $request): array

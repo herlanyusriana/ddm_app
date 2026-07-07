@@ -22,6 +22,16 @@
                 <div class="field"><label>Good</label><input type="number" min="0" name="good_qty" value="{{ old('good_qty', $entry->good_qty) }}" required></div>
                 <div class="field"><label>Reject</label><input type="number" min="0" name="reject_qty" value="{{ old('reject_qty', $entry->ng_qty) }}" required></div>
             </div>
+            <div class="field">
+                <label>Alasan Reject</label>
+                <select name="reject_reason">
+                    <option value="">— Pilih alasan reject —</option>
+                    @foreach($rejectReasons as $reason)
+                        <option value="{{ $reason }}" @selected(old('reject_reason', $entry->reject_reason) === $reason)>{{ $reason }}</option>
+                    @endforeach
+                </select>
+                <div class="field-hint">Wajib jika Reject lebih dari 0.</div>
+            </div>
             <div class="field"><label>Catatan</label><input name="notes" value="{{ old('notes', $entry->notes) }}"></div>
             <button class="btn btn-primary" type="submit">Simpan Perubahan</button>
         </form>

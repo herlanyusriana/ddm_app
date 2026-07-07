@@ -20,6 +20,7 @@ class ProductionEntry extends Model
         'process_id',
         'good_qty',
         'ng_qty',
+        'reject_reason',
         'repairable_qty',
         'scrap_qty',
         'notes',

@@ -305,6 +305,15 @@
                             <input type="number" min="0" name="reject_qty" value="0">
                         </div>
                     </div>
+                    <div class="field" data-reject-reason-field style="display:none;margin-top:12px">
+                        <label>Alasan Reject</label>
+                        <select name="reject_reason" data-reject-reason-select disabled>
+                            <option value="">— Pilih alasan reject —</option>
+                            @foreach($rejectReasons as $reason)
+                                <option value="{{ $reason }}" @selected(old('reject_reason') === $reason)>{{ $reason }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-grid" data-trouble-mode-fields style="display:none">
@@ -453,7 +462,7 @@
         <div class="panel-body no-pad">
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Waktu</th><th>Operator</th><th>Style</th><th>Good</th><th>Reject</th><th>Aksi</th></tr></thead>
+                    <thead><tr><th>Waktu</th><th>Operator</th><th>Style</th><th>Good</th><th>Reject</th><th>Alasan</th><th>Aksi</th></tr></thead>
                     <tbody>
                     @forelse($correctionEntries as $entry)
                         <tr>
@@ -462,6 +471,7 @@
                             <td>{{ $entry->buyer?->code ?? '—' }} / {{ $entry->sizeVariant?->production_code }}-{{ $entry->sizeVariant?->code }}</td>
                             <td class="td-num">{{ $entry->good_qty }}</td>
                             <td class="td-num">{{ $entry->ng_qty }}</td>
+                            <td>{{ $entry->reject_reason ?? '—' }}</td>
                             <td>
                                 <div class="correction-actions">
                                     <a class="btn btn-secondary btn-sm" href="/production-entries/{{ $entry->id }}/edit">Edit</a>
@@ -474,7 +484,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6"><div class="empty-state"><p>Belum ada input untuk dikoreksi.</p></div></td></tr>
+                        <tr><td colspan="7"><div class="empty-state"><p>Belum ada input untuk dikoreksi.</p></div></td></tr>
                     @endforelse
                     </tbody>
                 </table>
@@ -640,6 +650,28 @@
         operatorId.value = selected?.dataset.operatorId || '';
         operatorSearch.setCustomValidity(selected ? '' : 'Pilih operator dari suggestion.');
     });
+
+    function syncRejectReason() {
+        const rejectInput = document.querySelector('input[name="reject_qty"]');
+        const reasonField = document.querySelector('[data-reject-reason-field]');
+        const reasonSelect = document.querySelector('[data-reject-reason-select]');
+        const needsReason = Number(rejectInput?.value || 0) > 0;
+
+        if (!reasonField || !reasonSelect) {
+            return;
+        }
+
+        reasonField.style.display = needsReason ? '' : 'none';
+        reasonSelect.disabled = !needsReason;
+        reasonSelect.required = needsReason;
+
+        if (!needsReason) {
+            reasonSelect.value = '';
+        }
+    }
+
+    document.querySelector('input[name="reject_qty"]')?.addEventListener('input', syncRejectReason);
+    syncRejectReason();
 </script>
 <script>
     document.querySelector('[data-history-period]')?.addEventListener('change', (event) => {
