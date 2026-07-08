@@ -1412,6 +1412,10 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('name="trouble_type"', false);
         $page->assertSee('name="trouble_start_time"', false);
         $page->assertSee('name="trouble_end_time"', false);
+        $this->assertMatchesRegularExpression(
+            '/<div class="field" data-binding-operator-field>\s*<label>Operator Binding<\/label>/',
+            $page->getContent()
+        );
 
         $response = $this->post('/production-entries', [
             'record_mode' => 'trouble',

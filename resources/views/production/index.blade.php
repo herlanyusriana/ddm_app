@@ -255,7 +255,7 @@
                         <div class="readonly-pill">{{ $selectedProcess->name }}</div>
                     </div>
                     @if(strcasecmp($selectedProcess->name, 'Binding') === 0)
-                        <div class="field" data-production-mode-fields>
+                        <div class="field" data-binding-operator-field>
                             <label>Operator Binding</label>
                             <input
                                 name="operator_search"
