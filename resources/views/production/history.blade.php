@@ -2,7 +2,7 @@
 
 @section('topbar-actions')
     @php($exportProcess = $hourlyReport['process'])
-    @if($exportProcess)
+    @if($exportProcess && $historyView === 'input')
         <a
             class="link-btn link-btn-success"
             href="{{ route('reports.production-hourly', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth], false) }}"
@@ -27,6 +27,29 @@
 
     .history-toolbar .filter-bar {
         margin: 0;
+    }
+
+    .history-tabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .history-tab {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        color: var(--ink2);
+        font-size: 13px;
+        font-weight: 800;
+        min-height: 38px;
+        padding: 9px 14px;
+    }
+
+    .history-tab.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
     }
 
     .hourly-history-table {
@@ -91,8 +114,23 @@
 </style>
 
 <div class="history-grid">
+    @php($baseTabQuery = array_filter([
+        'input_type' => $pageType,
+        'process_id' => $pageType === 'proses' && $selectedProcess ? $selectedProcess->id : null,
+        'history_period' => $historyPeriod,
+        'production_date' => $date,
+        'production_month' => $productionMonth,
+        'shift' => $shift,
+    ], fn ($value) => $value !== null && $value !== ''))
+    <div class="history-tabs" aria-label="Pilihan history produksi">
+        <a class="history-tab {{ $historyView === 'input' ? 'active' : '' }}" href="{{ route('production.history', array_merge($baseTabQuery, ['view' => 'input']), false) }}">History Input</a>
+        <a class="history-tab {{ $historyView === 'trouble' ? 'active' : '' }}" href="{{ route('production.history', array_merge($baseTabQuery, ['view' => 'trouble']), false) }}">History Trouble</a>
+        <a class="history-tab {{ $historyView === 'correction' ? 'active' : '' }}" href="{{ route('production.history', array_merge($baseTabQuery, ['view' => 'correction']), false) }}">Koreksi Input</a>
+    </div>
+
     <div class="history-toolbar">
         <form class="filter-bar" method="get" action="{{ route('production.history', [], false) }}">
+            <input type="hidden" name="view" value="{{ $historyView }}">
             <input type="hidden" name="input_type" value="{{ $pageType }}">
             @if($pageType === 'proses' && $selectedProcess)
                 <select name="process_id" style="min-height:36px;font-size:13px">
@@ -116,7 +154,7 @@
         </form>
     </div>
 
-    @include('production.partials.history-panels')
+    @include('production.partials.history-panels', ['historyView' => $historyView])
 </div>
 
 <script>

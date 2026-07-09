@@ -1,3 +1,4 @@
+@if($historyView === 'input')
 <div class="panel hourly-history-panel">
     <div class="panel-header">
         <h2>History Input</h2>
@@ -60,7 +61,9 @@
         </div>
     </div>
 </div>
+@endif
 
+@if($historyView === 'trouble')
 <div class="panel trouble-history-panel">
     <div class="panel-header">
         <h2>History Trouble</h2>
@@ -101,7 +104,9 @@
         </div>
     </div>
 </div>
+@endif
 
+@if($historyView === 'correction')
 <div class="panel trouble-history-panel">
     <div class="panel-header">
         <h2>Koreksi Input Produksi</h2>
@@ -139,3 +144,4 @@
         </div>
     </div>
 </div>
+@endif

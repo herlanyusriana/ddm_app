@@ -40,6 +40,9 @@ class ProductionAdminController extends Controller
         $data = $this->productionPageData($request, $type);
         $data['pageTitle'] = 'History Produksi';
         $data['pageSubtitle'] = 'History input, trouble, koreksi, dan export Excel';
+        $data['historyView'] = in_array($request->query('view'), ['input', 'trouble', 'correction'], true)
+            ? $request->query('view')
+            : 'input';
 
         return view('production.history', $data);
     }

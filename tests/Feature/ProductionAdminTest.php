@@ -351,11 +351,30 @@ class ProductionAdminTest extends TestCase
         $historyPage = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-08&shift=1');
         $historyPage->assertOk();
         $historyPage->assertSee('History Input');
+        $historyPage->assertSee('History Trouble');
+        $historyPage->assertSee('Koreksi Input');
+        $historyPage->assertSee('History Input');
         $historyPage->assertSee('Export History Excel');
         $historyPage->assertSee('AMZ');
         $historyPage->assertSee('06T');
         $historyPage->assertSee('3');
+        $historyPage->assertDontSee('<h2>History Trouble</h2>', false);
+        $historyPage->assertDontSee('<h2>Koreksi Input Produksi</h2>', false);
         $historyPage->assertDontSee('Simpan Input Produksi');
+
+        $troubleTab = $this->get('/production-history?view=trouble&process_id='.$process->id.'&production_date=2026-07-08&shift=1');
+        $troubleTab->assertOk();
+        $troubleTab->assertSee('<h2>History Trouble</h2>', false);
+        $troubleTab->assertDontSee('Export History Excel');
+        $troubleTab->assertDontSee('<h2>History Input</h2>', false);
+        $troubleTab->assertDontSee('<h2>Koreksi Input Produksi</h2>', false);
+
+        $correctionTab = $this->get('/production-history?view=correction&process_id='.$process->id.'&production_date=2026-07-08&shift=1');
+        $correctionTab->assertOk();
+        $correctionTab->assertSee('<h2>Koreksi Input Produksi</h2>', false);
+        $correctionTab->assertDontSee('Export History Excel');
+        $correctionTab->assertDontSee('<h2>History Input</h2>', false);
+        $correctionTab->assertDontSee('<h2>History Trouble</h2>', false);
     }
 
     public function test_master_data_has_its_own_page(): void
@@ -1475,7 +1494,7 @@ class ProductionAdminTest extends TestCase
             'notes' => 'Ganti bearing',
         ]);
 
-        $history = $this->get('/production-history?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $history = $this->get('/production-history?view=trouble&process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
         $history->assertSee('History Trouble');
         $history->assertSee('09:15 - 10:00');
         $history->assertSee('45 menit');
@@ -1496,11 +1515,14 @@ class ProductionAdminTest extends TestCase
             'created_at' => '2026-07-05 01:10:00',
         ]);
 
-        $page = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+        $page = $this->get('/production-history?view=input&process_id='.$process->id.'&production_date=2026-07-05&shift=1');
         $page->assertOk();
         $page->assertSee('WF / A-12T = 4');
-        $page->assertSee('/production-entries/'.$entry->id.'/edit', false);
-        $page->assertSee('Koreksi Input Produksi');
+
+        $correctionPage = $this->get('/production-history?view=correction&process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+        $correctionPage->assertOk();
+        $correctionPage->assertSee('Koreksi Input Produksi');
+        $correctionPage->assertSee('/production-entries/'.$entry->id.'/edit', false);
 
         $this->get('/production-entries/'.$entry->id.'/edit')->assertOk()->assertSee('Simpan Perubahan');
         $this->put('/production-entries/'.$entry->id, [
