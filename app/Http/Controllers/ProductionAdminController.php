@@ -34,7 +34,22 @@ class ProductionAdminController extends Controller
         return $this->renderInputPage($request, 'hasil');
     }
 
+    public function productionHistory(Request $request): View
+    {
+        $type = $request->query('input_type') === 'hasil' ? 'hasil' : 'proses';
+        $data = $this->productionPageData($request, $type);
+        $data['pageTitle'] = 'History Produksi';
+        $data['pageSubtitle'] = 'History input, trouble, koreksi, dan export Excel';
+
+        return view('production.history', $data);
+    }
+
     private function renderInputPage(Request $request, string $type): View
+    {
+        return view('production.index', $this->productionPageData($request, $type));
+    }
+
+    private function productionPageData(Request $request, string $type): array
     {
         $window = $this->productionWindow($request);
         $date = $window['date'];
@@ -103,9 +118,10 @@ class ProductionAdminController extends Controller
             ->latest()
             ->get();
 
-        return view('production.index', [
+        return [
             'pageType' => $type,
             'pageTitle' => $title,
+            'pageSubtitle' => 'Input Good dan Reject per proses',
             'date' => $date,
             'shift' => $shift,
             'shiftOptions' => $this->shiftOptions(),
@@ -127,7 +143,7 @@ class ProductionAdminController extends Controller
             'troubles' => $troubles,
             'correctionEntries' => $correctionEntries,
             'rejectReasons' => $this->rejectReasonOptions(),
-        ]);
+        ];
     }
 
     public function masters(?string $section = null): View

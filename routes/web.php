@@ -9,6 +9,7 @@ Route::get('/', [ProductionAdminController::class, 'dashboard']);
 // ── Input Produksi ──
 Route::get('/input-proses', [ProductionAdminController::class, 'inputProses'])->name('input.proses');
 Route::get('/input-hasil',  [ProductionAdminController::class, 'inputHasil'])->name('input.hasil');
+Route::get('/production-history', [ProductionAdminController::class, 'productionHistory'])->name('production.history');
 Route::post('/production-entries', [ProductionAdminController::class, 'storeProductionEntry'])->name('production-entries.store');
 Route::get('/production-entries/{entry}/edit', [ProductionAdminController::class, 'editProductionEntry'])->name('production-entries.edit');
 Route::put('/production-entries/{entry}', [ProductionAdminController::class, 'updateProductionEntry'])->name('production-entries.update');

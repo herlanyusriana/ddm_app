@@ -603,6 +603,9 @@
                 <a class="nav-link {{ request()->is('input-hasil') ? 'active' : '' }}" href="/input-hasil">
                     <span class="icon">✅</span> Input Hasil (FG)
                 </a>
+                <a class="nav-link {{ request()->is('production-history') ? 'active' : '' }}" href="/production-history">
+                    <span class="icon">🕘</span> History Produksi
+                </a>
                 <a class="nav-link {{ request()->is('rework') ? 'active' : '' }}" href="/rework">
                     <span class="icon">🔧</span> Rework
                 </a>
@@ -683,7 +686,7 @@
         <span class="bottom-icon">🏪</span>
         <span>WH</span>
     </a>
-    <a class="app-bottom-link {{ request()->is('input-proses') || request()->is('input-hasil') ? 'active' : '' }}" href="/input-proses">
+    <a class="app-bottom-link {{ request()->is('input-proses') || request()->is('input-hasil') || request()->is('production-history') ? 'active' : '' }}" href="/input-proses">
         <span class="bottom-icon">✅</span>
         <span>Input</span>
     </a>

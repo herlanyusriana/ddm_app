@@ -326,6 +326,38 @@ class ProductionAdminTest extends TestCase
         $fgPage->assertSee('type="radio" name="process_id"', false);
     }
 
+    public function test_production_history_is_separated_from_input_page(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
+        $process = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-08',
+            'shift' => '1',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $process->id,
+            'good_qty' => 3,
+            'ng_qty' => 0,
+        ]);
+
+        $inputPage = $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-08&shift=1');
+        $inputPage->assertOk();
+        $inputPage->assertSee('Form Input');
+        $inputPage->assertSee('Lihat History');
+        $inputPage->assertDontSee('History Input');
+        $inputPage->assertDontSee('Koreksi Input Produksi');
+
+        $historyPage = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-08&shift=1');
+        $historyPage->assertOk();
+        $historyPage->assertSee('History Input');
+        $historyPage->assertSee('Export History Excel');
+        $historyPage->assertSee('AMZ');
+        $historyPage->assertSee('06T');
+        $historyPage->assertSee('3');
+        $historyPage->assertDontSee('Simpan Input Produksi');
+    }
+
     public function test_master_data_has_its_own_page(): void
     {
         $response = $this->get('/masters');
@@ -701,15 +733,16 @@ class ProductionAdminTest extends TestCase
         foreach ($windows as [$now, $expectedDate, $expectedShift]) {
             CarbonImmutable::setTestNow(CarbonImmutable::parse($now, 'Asia/Jakarta'));
 
-            foreach (['/dashboard', '/input-proses', '/input-hasil'] as $path) {
+            foreach (['/dashboard', '/input-proses', '/input-hasil', '/production-history'] as $path) {
                 $response = $this->get($path);
 
                 $response->assertOk();
                 $response->assertSee('value="'.$expectedDate.'"', false);
-                $response->assertSee(
-                    'value="'.$expectedShift.'" selected',
-                    false
-                );
+                if ($path === '/input-proses' || $path === '/input-hasil') {
+                    $response->assertSee('name="shift" value="'.$expectedShift.'"', false);
+                } else {
+                    $response->assertSee('value="'.$expectedShift.'" selected', false);
+                }
             }
         }
 
@@ -1208,7 +1241,7 @@ class ProductionAdminTest extends TestCase
         $bindingPage->assertSee('name="operator_search"', false);
         $bindingPage->assertSee('list="operator-suggestions"', false);
         $bindingPage->assertSee('0012 · Siti');
-        $bindingPage->assertSee('Export History Excel');
+        $bindingPage->assertSee('Lihat History');
         $bindingPage->assertSee('process_id='.$binding->id, false);
 
         $missing = $this->post('/production-entries', [
@@ -1309,7 +1342,7 @@ class ProductionAdminTest extends TestCase
             'created_at' => '2026-07-05 01:30:00', 'updated_at' => '2026-07-05 01:30:00',
         ]);
 
-        $page = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $page = $this->get('/production-history?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
 
         $page->assertOk();
         $page->assertSee('Jam 1');
@@ -1336,7 +1369,7 @@ class ProductionAdminTest extends TestCase
             'created_at' => '2026-07-05 01:10:00', 'updated_at' => '2026-07-05 01:10:00',
         ]);
 
-        $page = $this->get('/input-proses?process_id='.$sewing->id.'&production_date=2026-07-05&shift=1');
+        $page = $this->get('/production-history?process_id='.$sewing->id.'&production_date=2026-07-05&shift=1');
         $export = $this->get('/reports/production-hourly?production_date=2026-07-05&shift=1&process_id='.$sewing->id);
         $sheet = $this->xlsxSheetXml($export->getContent());
         $expected = '08:10 · Good = 8, Reject = 1';
@@ -1382,7 +1415,7 @@ class ProductionAdminTest extends TestCase
         }
 
         $query = 'history_period=monthly&production_month=2026-07&production_date=2026-07-05&shift=1&process_id='.$binding->id;
-        $page = $this->get('/input-proses?'.$query);
+        $page = $this->get('/production-history?'.$query);
         $export = $this->get('/reports/production-hourly?'.$query);
         $sheet = $this->xlsxSheetXml($export->getContent());
 
@@ -1442,7 +1475,7 @@ class ProductionAdminTest extends TestCase
             'notes' => 'Ganti bearing',
         ]);
 
-        $history = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $history = $this->get('/production-history?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
         $history->assertSee('History Trouble');
         $history->assertSee('09:15 - 10:00');
         $history->assertSee('45 menit');
@@ -1463,7 +1496,7 @@ class ProductionAdminTest extends TestCase
             'created_at' => '2026-07-05 01:10:00',
         ]);
 
-        $page = $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+        $page = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
         $page->assertOk();
         $page->assertSee('WF / A-12T = 4');
         $page->assertSee('/production-entries/'.$entry->id.'/edit', false);
@@ -1524,7 +1557,7 @@ class ProductionAdminTest extends TestCase
             'created_at' => '2026-07-05 01:20:00',
         ]);
 
-        $page = $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+        $page = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
 
         $page->assertOk();
         $page->assertSee('Target: 5');
@@ -1675,7 +1708,7 @@ class ProductionAdminTest extends TestCase
             'reject_reason' => 'Bongkar',
         ]);
 
-        $this->get('/input-proses?process_id='.$process->id.'&production_date=2026-07-07&shift=1')
+        $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-07&shift=1')
             ->assertOk()
             ->assertSee('Alasan: Bongkar');
     }
