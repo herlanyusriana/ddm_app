@@ -4,6 +4,11 @@
     @php($exportProcess = $hourlyReport['process'])
     @if($exportProcess && $historyView === 'input')
         <a
+            class="link-btn link-btn-primary"
+            href="{{ route('reports.production-hourly.print', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id], false) }}"
+            target="_blank"
+        >Print Report Harian</a>
+        <a
             class="link-btn link-btn-success"
             href="{{ route('reports.production-hourly', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth], false) }}"
         >Export History Excel</a>

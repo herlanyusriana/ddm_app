@@ -1188,6 +1188,51 @@ class ProductionAdminController extends Controller
         return $this->xlsxResponse($filename, substr($process->name, 0, 31), $report['headers'], $exportRows);
     }
 
+    public function productionHourlyPrint(Request $request): View
+    {
+        $validated = $request->validate([
+            'production_date' => ['required', 'date'],
+            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'process_id' => [
+                'required',
+                Rule::exists('processes', 'id')->where('is_input_process', true),
+            ],
+        ]);
+
+        $process = Process::findOrFail($validated['process_id']);
+        $report = $this->productionHourlyReport(
+            $validated['production_date'],
+            $validated['shift'],
+            $process,
+        );
+
+        $rejectRows = ProductionEntry::with(['process'])
+            ->whereDate('production_date', $validated['production_date'])
+            ->where('shift', $validated['shift'])
+            ->where('process_id', $process->id)
+            ->where('ng_qty', '>', 0)
+            ->get()
+            ->groupBy(fn (ProductionEntry $entry) => ($entry->reject_reason ?: 'Reject').'-'.$entry->process_id)
+            ->map(function ($entries) use ($process): array {
+                $first = $entries->first();
+
+                return [
+                    'reject' => $first->reject_reason ?: 'Reject',
+                    'position' => strtoupper($first->process?->name ?? $process->name),
+                    'qty' => (int) $entries->sum('ng_qty'),
+                ];
+            })
+            ->values();
+
+        return view('production.production-hourly-print', [
+            'date' => $validated['production_date'],
+            'shift' => $validated['shift'],
+            'process' => $process,
+            'report' => $report,
+            'rejectRows' => $rejectRows,
+        ]);
+    }
+
     public function fgReportPrint(Request $request)
     {
         $date  = $request->query('production_date', now()->toDateString());

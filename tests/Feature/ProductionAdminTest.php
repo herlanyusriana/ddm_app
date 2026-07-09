@@ -1323,6 +1323,42 @@ class ProductionAdminTest extends TestCase
         $this->assertStringContainsString('15.6', $sheet);
     }
 
+    public function test_binding_daily_report_print_matches_operator_hourly_layout(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
+        $operator = Operator::create(['operator_code' => '27', 'name' => 'Harun', 'target_prod' => 6]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05', 'shift' => '2',
+            'buyer_id' => $buyer->id, 'size_variant_id' => $size->id,
+            'process_id' => $binding->id, 'operator_id' => $operator->id,
+            'good_qty' => 12, 'ng_qty' => 2, 'reject_reason' => 'Bongkar',
+            'created_at' => '2026-07-05 09:30:00', 'updated_at' => '2026-07-05 09:30:00',
+        ]);
+
+        $history = $this->get('/production-history?view=input&process_id='.$binding->id.'&production_date=2026-07-05&shift=2');
+        $history->assertOk();
+        $history->assertSee('Print Report Harian');
+        $history->assertSee('/reports/production-hourly/print', false);
+
+        $print = $this->get('/reports/production-hourly/print?production_date=2026-07-05&shift=2&process_id='.$binding->id);
+        $print->assertOk();
+        $print->assertSee('TANGGAL');
+        $print->assertSee('05-Jul-26');
+        $print->assertSee('Mesin');
+        $print->assertSee('Nama');
+        $print->assertSee('Target');
+        $print->assertSee('Jam 1');
+        $print->assertSee('Reject');
+        $print->assertSee('Posisi');
+        $print->assertSee('QC');
+        $print->assertSee('Harun');
+        $print->assertSee('AMZ / A-12Q');
+        $print->assertSee('Bongkar');
+        $print->assertSee('window.print()', false);
+    }
+
     public function test_non_binding_hourly_export_omits_operator_identity(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);
