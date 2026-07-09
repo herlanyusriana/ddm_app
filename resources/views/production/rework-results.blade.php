@@ -2,6 +2,9 @@
 
 @section('topbar-actions')
 <a class="link-btn link-btn-success" href="/rework-results-export?date={{ $date }}">Export Excel</a>
+@if($results->isNotEmpty())
+    <a class="link-btn link-btn-secondary" href="/rework-results/{{ $results->first()->id }}/additional-print?date={{ $date }}" target="_blank">Form Additional Terakhir</a>
+@endif
 <form class="filter-bar" method="get" style="margin:0"><input type="date" name="date" value="{{ $date }}"><button class="btn btn-secondary btn-sm">Filter</button></form>
 @endsection
 
@@ -49,7 +52,7 @@
 <section class="panel">
     <div class="panel-header"><h2>Hasil Rework</h2><span class="badge badge-neutral">{{ $results->count() }} records</span></div>
     <div class="table-wrap"><table><thead><tr><th>Style</th><th>Bagian</th><th>Qty</th><th>Operator</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
-    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px"><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/additional-print?date={{ $date }}" target="_blank">Print</a><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
+    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px"><a class="btn btn-primary btn-sm" href="/rework-results/{{ $result->id }}/additional-print?date={{ $date }}" target="_blank">Form Additional</a><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
     @empty<tr><td colspan="6"><div class="empty-state"><p>Belum ada hasil rework.</p></div></td></tr>@endforelse
     </tbody></table></div>
 </section>

@@ -1697,6 +1697,10 @@ class ProductionAdminTest extends TestCase
             'component' => 'Bottom', 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
         ])->assertRedirect('/rework-results/1/additional-print?date=2026-07-07');
         $resultId = DB::table('rework_results')->value('id');
+        $this->get('/rework-results?date=2026-07-07')
+            ->assertOk()
+            ->assertSee('Form Additional Terakhir')
+            ->assertSee('Form Additional');
         $this->get('/rework-results/'.$resultId.'/additional-print?date=2026-07-07')
             ->assertOk()
             ->assertSee('Form Additional')
