@@ -4,6 +4,21 @@
     $isBinding = strcasecmp($process->name, 'Binding') === 0;
     $rows = collect($report['rows']);
     $totals = $report['totals_row'];
+    $minimumRows = 9;
+    $blankRows = max(0, $minimumRows - $rows->count());
+
+    $formatHourCell = function (?string $value): string {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return '';
+        }
+
+        $value = str_replace([' · ', ', Reject = ', 'Alasan: '], ['  ', '  R: ', ''], $value);
+        $value = preg_replace('/^\d{2}:\d{2}\s+/', '', $value);
+        $value = str_replace(' = ', '    ', $value);
+
+        return $value;
+    };
 @endphp
 <!doctype html>
 <html lang="id">
@@ -14,19 +29,24 @@
     <style>
         @page {
             size: A4 landscape;
-            margin: 6mm;
+            margin: 5mm;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+        }
+
         body {
             background: #fff;
             color: #000;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 10px;
-            margin: 0;
+            font-size: 8px;
         }
 
         .toolbar {
@@ -41,172 +61,212 @@
         .toolbar button {
             background: #2563eb;
             border: 0;
-            border-radius: 6px;
+            border-radius: 5px;
             color: #fff;
             cursor: pointer;
             font: 700 12px Arial, Helvetica, sans-serif;
-            padding: 8px 12px;
+            padding: 7px 11px;
             text-decoration: none;
         }
 
         .sheet {
-            background: #bfbfbf;
-            min-height: 198mm;
-            padding: 6px;
+            background: #b8b8b8;
+            border: 2px solid #0f766e;
+            height: 200mm;
+            overflow: hidden;
+            padding: 3px;
+            width: 287mm;
         }
 
-        .report-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 4px;
+        .top-meta {
+            height: 18px;
+            line-height: 1.35;
+            padding-left: 2px;
         }
 
-        .meta {
-            line-height: 1.8;
-            min-width: 180px;
-        }
-
-        .meta-row {
+        .top-meta .row {
             display: grid;
-            grid-template-columns: 70px 12px 1fr;
-            gap: 4px;
+            grid-template-columns: 55px 1fr;
+            width: 170px;
         }
 
-        .title-block {
-            align-items: flex-end;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            min-width: 250px;
-            text-align: right;
-        }
-
-        .title-block h1 {
-            border-bottom: 3px solid #000;
-            font-size: 24px;
-            line-height: 1;
-            margin: 0;
-        }
-
-        .company {
-            font-weight: 800;
-            line-height: 1.4;
-        }
-
-        .content-grid {
+        .report-grid {
             display: grid;
             gap: 8px;
-            grid-template-columns: minmax(0, 4fr) 150px;
+            grid-template-columns: 1fr 58mm;
         }
 
         table {
             border-collapse: collapse;
+            table-layout: fixed;
             width: 100%;
         }
 
         th,
         td {
             border: 1px solid #000;
-            padding: 3px 4px;
-            vertical-align: top;
+            padding: 1px 3px;
+            vertical-align: middle;
         }
 
         th {
+            font-size: 8px;
             font-weight: 800;
+            height: 14px;
             text-align: center;
+        }
+
+        .main-table {
+            background: #b8b8b8;
         }
 
         .main-table td {
-            height: 34px;
+            font-size: 7px;
+            height: 36px;
+            line-height: 1.22;
         }
 
-        .main-table .no-col {
+        .main-table .machine-col {
             text-align: center;
-            width: 28px;
+            width: 10mm;
         }
 
         .main-table .name-col {
-            width: 110px;
+            font-size: 7px;
+            font-weight: 700;
+            text-align: center;
+            width: 28mm;
         }
 
-        .main-table .target-col,
+        .main-table .target-col {
+            text-align: center;
+            width: 14mm;
+        }
+
+        .main-table .hour-col {
+            width: 23mm;
+        }
+
         .main-table .total-col {
             text-align: center;
-            width: 48px;
+            width: 16mm;
         }
 
         .hour-cell {
-            font-size: 8.5px;
-            line-height: 1.35;
+            font-size: 6.5px;
+            line-height: 1.18;
             white-space: pre-line;
         }
 
         .total-row td {
+            font-size: 7px;
             font-weight: 800;
-            height: 20px;
+            height: 13px;
             text-align: center;
         }
 
         .reject-table {
-            font-size: 8.5px;
+            background: #b8b8b8;
+        }
+
+        .reject-table th {
+            height: 15px;
         }
 
         .reject-table td {
-            height: 30px;
+            font-size: 6.8px;
+            font-weight: 700;
+            height: 18px;
+            line-height: 1.05;
+            text-transform: uppercase;
+        }
+
+        .reject-table .reject-col {
+            width: 18mm;
+        }
+
+        .reject-table .pos-col {
+            width: 18mm;
+        }
+
+        .reject-table .qty-col {
+            text-align: center;
+            width: 11mm;
+        }
+
+        .reject-table .ttd-col {
+            width: 11mm;
         }
 
         .footer-grid {
             display: grid;
             gap: 8px;
-            grid-template-columns: 300px 1fr 100px;
-            margin-top: 8px;
+            grid-template-columns: 85mm 1fr 30mm;
+            margin-top: 5px;
         }
 
-        .note-box,
-        .sign-box,
+        .weather-box,
+        .approval-table,
         .qc-box {
+            background: #fff;
             border: 1px solid #000;
-            min-height: 78px;
+            height: 22mm;
         }
 
-        .note-box {
+        .weather-box {
             display: grid;
-            grid-template-rows: 1fr 20px;
+            grid-template-rows: 1fr 5mm;
         }
 
-        .note-box .note {
-            padding: 8px;
+        .weather-note {
+            font-size: 8px;
+            font-weight: 800;
+            padding: 7px;
         }
 
-        .note-box .signatures {
+        .weather-sign {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
         }
 
-        .note-box .signatures div,
-        .qc-box .label {
+        .weather-sign div {
             border-top: 1px solid #000;
-            padding: 3px;
+            border-right: 1px solid #000;
+            padding-top: 1px;
             text-align: center;
         }
 
-        .approval-box {
-            align-self: end;
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            width: 430px;
+        .weather-sign div:last-child {
+            border-right: 0;
         }
 
-        .approval-box div {
+        .approval-table {
+            align-self: end;
+            background: transparent;
+            border: 0;
+            display: grid;
+            grid-template-columns: repeat(7, 18mm);
+            justify-content: start;
+            padding-top: 9mm;
+        }
+
+        .approval-table div {
+            background: #fff;
             border: 1px solid #000;
-            min-height: 38px;
-            padding-top: 5px;
+            height: 12mm;
+            padding-top: 2px;
             text-align: center;
         }
 
         .qc-box {
             display: grid;
-            grid-template-rows: 1fr 20px;
+            grid-template-rows: 1fr 5mm;
+        }
+
+        .qc-box .label {
+            border-top: 1px solid #000;
+            padding-top: 1px;
+            text-align: center;
         }
 
         @media print {
@@ -215,7 +275,9 @@
             }
 
             .sheet {
-                min-height: auto;
+                border: 0;
+                height: 200mm;
+                width: 287mm;
             }
         }
     </style>
@@ -227,38 +289,26 @@
     </div>
 
     <main class="sheet">
-        <header class="report-header">
-            <div class="meta">
-                <div class="meta-row"><strong>TANGGAL</strong><span>:</span><span>{{ $printDate }}</span></div>
-                <div class="meta-row"><strong>SHIFT</strong><span>:</span><span>{{ $shift }}</span></div>
-                <div class="meta-row"><strong>PROSES</strong><span>:</span><span>{{ strtoupper($process->name) }}</span></div>
-            </div>
-            <div class="title-block">
-                <h1>Form Additional</h1>
-                <div class="company">
-                    PT DAYA DAIJANG MIDAS<br>
-                    Departemen : {{ strtoupper($process->name) }}<br>
-                    Shift : {{ $shift }}<br>
-                    Tanggal : {{ $printDate }}
-                </div>
-            </div>
-        </header>
+        <div class="top-meta">
+            <div class="row"><strong>TANGGAL</strong><span>{{ $printDate }}</span></div>
+            <div class="row"><strong>SHIFT</strong><span>{{ $shift }}</span></div>
+        </div>
 
-        <section class="content-grid">
+        <section class="report-grid">
             <table class="main-table">
                 <thead>
                     <tr>
-                        <th class="no-col">Mesin</th>
+                        <th class="machine-col">Mesin</th>
                         <th class="name-col">Nama</th>
                         <th class="target-col">Target</th>
                         @foreach($hourLabels as $label)
-                            <th>{{ $label }}</th>
+                            <th class="hour-col">{{ $label }}</th>
                         @endforeach
                         <th class="total-col">TOTAL</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($rows as $row)
+                    @foreach($rows as $row)
                         @php
                             $machine = $isBinding ? ($row[0] ?? '') : '';
                             $name = $isBinding ? ($row[1] ?? '—') : trim(($row[0] ?? '—').' / '.($row[1] ?? '—'), ' /');
@@ -267,24 +317,33 @@
                             $totalIndex = $isBinding ? 10 : 9;
                         @endphp
                         <tr>
-                            <td class="no-col">{{ $machine }}</td>
+                            <td class="machine-col">{{ $machine }}</td>
                             <td class="name-col">{{ $name }}{{ $machine !== '' ? ' ('.$machine.')' : '' }}</td>
                             <td class="target-col">{{ $target }}</td>
                             @for($i = 0; $i < 7; $i++)
-                                <td class="hour-cell">{{ $row[$hourStart + $i] ?? '' }}</td>
+                                <td class="hour-cell">{{ $formatHourCell($row[$hourStart + $i] ?? '') }}</td>
                             @endfor
                             <td class="total-col">{{ $row[$totalIndex] ?? 0 }}</td>
                         </tr>
-                    @empty
+                    @endforeach
+
+                    @for($i = 0; $i < $blankRows; $i++)
                         <tr>
-                            <td colspan="11" style="height: 80px; text-align: center;">Belum ada data produksi.</td>
+                            <td class="machine-col">{{ $rows->count() + $i + 1 }}</td>
+                            <td class="name-col"></td>
+                            <td class="target-col"></td>
+                            @foreach($hourLabels as $label)
+                                <td class="hour-cell"></td>
+                            @endforeach
+                            <td class="total-col">0</td>
                         </tr>
-                    @endforelse
+                    @endfor
 
                     <tr class="total-row">
                         <td colspan="3">TOTAL</td>
                         @for($i = 0; $i < 7; $i++)
-                            <td class="hour-cell">{{ $totals[$isBinding ? 3 + $i : 2 + $i] ?? '' }}</td>
+                            @php($totalText = (string) ($totals[$isBinding ? 3 + $i : 2 + $i] ?? ''))
+                            <td>{{ preg_match('/TOTAL G:\s*(\d+)/', $totalText, $match) ? $match[1] : '' }}</td>
                         @endfor
                         <td>{{ $totals[$isBinding ? 10 : 9] ?? 0 }}</td>
                     </tr>
@@ -294,44 +353,55 @@
             <table class="reject-table">
                 <thead>
                     <tr>
-                        <th>Reject</th>
-                        <th>Posisi</th>
-                        <th>Qty</th>
-                        <th>TTD</th>
+                        <th class="reject-col">Reject</th>
+                        <th class="pos-col">Posisi</th>
+                        <th class="qty-col">Qty</th>
+                        <th class="ttd-col">TTD</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($rejectRows as $reject)
-                        <tr>
-                            <td>{{ strtoupper($reject['reject']) }}</td>
-                            <td>{{ $reject['position'] }}</td>
-                            <td style="text-align: center;">{{ $reject['qty'] }}</td>
-                            <td></td>
-                        </tr>
-                    @empty
-                        @for($i = 0; $i < 7; $i++)
+                    @if($rejectRows->isEmpty())
+                        @for($i = 0; $i < 9; $i++)
                             <tr>
-                                <td>BINDING</td>
-                                <td>SUDAH REPAIR</td>
-                                <td style="text-align: center;">0</td>
-                                <td></td>
+                                <td class="reject-col">BINDING:<br></td>
+                                <td class="pos-col">SUDAH<br>REPAIR</td>
+                                <td class="qty-col">0</td>
+                                <td class="ttd-col"></td>
                             </tr>
                         @endfor
-                    @endforelse
+                    @else
+                        @foreach($rejectRows as $reject)
+                            <tr>
+                                <td class="reject-col">BINDING:<br>{{ $reject['reject'] }}</td>
+                                <td class="pos-col">SUDAH<br>REPAIR</td>
+                                <td class="qty-col">{{ $reject['qty'] }}</td>
+                                <td class="ttd-col"></td>
+                            </tr>
+                        @endforeach
+                        @for($i = 0; $i < max(0, 9 - $rejectRows->count()); $i++)
+                            <tr>
+                                <td class="reject-col">PACKING:<br></td>
+                                <td class="pos-col">REPAIR</td>
+                                <td class="qty-col">0</td>
+                                <td class="ttd-col"></td>
+                            </tr>
+                        @endfor
+                    @endif
                 </tbody>
             </table>
         </section>
 
         <footer class="footer-grid">
-            <div class="note-box">
-                <div class="note">16.00 - 24.00 = TIDAK HUJAN</div>
-                <div class="signatures">
+            <div class="weather-box">
+                <div class="weather-note">16.00 - 24.00 = TIDAK<br>HUJAN</div>
+                <div class="weather-sign">
                     <div>Hujan / Tidak Hujan</div>
                     <div>Write</div>
                     <div>Review 1</div>
                 </div>
             </div>
-            <div class="approval-box">
+
+            <div class="approval-table">
                 <div>Write</div>
                 <div>Review 1</div>
                 <div>Review 2</div>
@@ -340,6 +410,7 @@
                 <div>Review 5</div>
                 <div>Approval</div>
             </div>
+
             <div class="qc-box">
                 <div></div>
                 <div class="label">QC</div>
