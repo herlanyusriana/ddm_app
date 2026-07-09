@@ -16,7 +16,8 @@
         align-items: start;
         display: grid;
         gap: 20px;
-        grid-template-columns: minmax(340px, 420px);
+        grid-template-columns: minmax(520px, 760px);
+        justify-content: center;
     }
 
     @media (max-width: 760px) {
