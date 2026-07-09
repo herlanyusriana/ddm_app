@@ -412,7 +412,7 @@ class ProductionAdminController extends Controller
             'date' => $date,
             'summary' => $summary,
             'grandTotal' => (int) $summary->sum(fn ($group) => $group['styles']->sum('qty')),
-            'transactions' => $ledger->filter(fn (BindingRejectStock $row) => $row->transaction_date->toDateString() === $date),
+            'transactions' => $ledger,
             'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(),
             'sizes' => SizeVariant::where('is_active', true)->orderBy('production_code')->orderBy('code')->get(),
             'editRecord' => $editRecord,

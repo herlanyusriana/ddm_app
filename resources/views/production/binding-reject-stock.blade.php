@@ -61,7 +61,7 @@
 </div>
 
 <section class="panel mt-6">
-    <div class="panel-header"><h2>Transaksi {{ date('d M Y', strtotime($date)) }}</h2><span class="badge badge-neutral">{{ $transactions->count() }} records</span></div>
+    <div class="panel-header"><h2>Stock Card s/d {{ date('d M Y', strtotime($date)) }}</h2><span class="badge badge-neutral">{{ $transactions->count() }} records</span></div>
     <div class="table-wrap">
         <table>
             <thead><tr><th>Jam</th><th>Pallet</th><th>PO</th><th>Buyer</th><th>Style</th><th>IN</th><th>OUT</th><th>Balance</th><th>Paraf</th><th>Aksi</th></tr></thead>
@@ -73,7 +73,7 @@
                     <td><div style="display:flex;gap:6px"><a class="btn btn-secondary btn-sm" href="/binding-reject-stock/{{ $row->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/binding-reject-stock/{{ $row->id }}" onsubmit="return confirm('Hapus transaksi ini?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td>
                 </tr>
             @empty
-                <tr><td colspan="10"><div class="empty-state"><p>Belum ada transaksi pada tanggal ini.</p></div></td></tr>
+                <tr><td colspan="10"><div class="empty-state"><p>Belum ada transaksi sampai tanggal ini.</p></div></td></tr>
             @endforelse
             </tbody>
         </table>

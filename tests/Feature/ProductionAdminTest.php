@@ -1618,6 +1618,14 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('GRAND TOTAL');
         $page->assertSee('/binding-reject-stock/'.$stockId.'/edit', false);
 
+        $nextDayPage = $this->get('/binding-reject-stock?date=2026-07-06');
+        $nextDayPage->assertOk();
+        $nextDayPage->assertSee('Stock Card s/d 06 Jul 2026');
+        $nextDayPage->assertSee('AMZ');
+        $nextDayPage->assertSee('6T');
+        $nextDayPage->assertSee('48');
+        $nextDayPage->assertSee('/binding-reject-stock/'.$stockId.'/edit', false);
+
         $this->put('/binding-reject-stock/'.$stockId, [
             'transaction_date' => '2026-07-05',
             'transaction_time' => '08:00',
