@@ -1047,21 +1047,24 @@ class ProductionAdminController extends Controller
             'spk_id' => ['nullable', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
-            'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
+            'buyer_id' => ['nullable', 'exists:buyers,id'],
             'part_id' => [
                 ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
                 'exists:parts,id',
             ],
-            'size_variant_id' => [
-                $isCustomEntry || ($requiresPart && ! $spk?->size_variant_id) ? 'required' : 'nullable',
-                'exists:size_variants,id',
-            ],
+            'size_variant_id' => ['nullable', 'exists:size_variants,id'],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
             ],
+            'operator_id' => ['required', 'exists:operators,id'],
             'entries' => ['required', 'array', 'min:1'],
-            'entries.*.operator_id' => ['required', 'exists:operators,id', 'distinct'],
+            'entries.*.buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
+            'entries.*.production_code' => ['nullable', Rule::in(['A', 'B'])],
+            'entries.*.size_variant_id' => [
+                $isCustomEntry || ($requiresPart && ! $spk?->size_variant_id) ? 'required' : 'nullable',
+                'exists:size_variants,id',
+            ],
             'entries.*.good_qty' => ['required', 'integer', 'min:0'],
             'entries.*.reject_qty' => ['required', 'integer', 'min:0'],
             'entries.*.reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
@@ -1069,18 +1072,23 @@ class ProductionAdminController extends Controller
         ]);
 
         $entries = collect($validated['entries'])
-            ->map(fn (array $entry) => [
-                'operator_id' => (int) $entry['operator_id'],
-                'good_qty' => (int) $entry['good_qty'],
-                'ng_qty' => (int) $entry['reject_qty'],
-                'reject_reason' => ((int) $entry['reject_qty'] > 0) ? ($entry['reject_reason'] ?? null) : null,
-            ])
+            ->map(function (array $entry) use ($validated, $spk, $isCustomEntry, $requiresPart) {
+                return [
+                    'buyer_id' => $spk ? $spk->buyer_id : (int) ($entry['buyer_id'] ?? $validated['buyer_id'] ?? 0),
+                    'size_variant_id' => $spk && $requiresPart
+                        ? ($validated['size_variant_id'] ?? $spk->size_variant_id)
+                        : (int) ($entry['size_variant_id'] ?? $validated['size_variant_id'] ?? 0),
+                    'good_qty' => (int) $entry['good_qty'],
+                    'ng_qty' => (int) $entry['reject_qty'],
+                    'reject_reason' => ((int) $entry['reject_qty'] > 0) ? ($entry['reject_reason'] ?? null) : null,
+                ];
+            })
             ->filter(fn (array $entry) => ($entry['good_qty'] + $entry['ng_qty']) > 0)
             ->values();
 
         if ($entries->isEmpty()) {
             return back()
-                ->withErrors(['entries' => 'Minimal satu baris operator harus punya Good atau Reject lebih dari 0.'])
+                ->withErrors(['entries' => 'Minimal satu baris input harus punya Good atau Reject lebih dari 0.'])
                 ->withInput();
         }
 
@@ -1124,10 +1132,9 @@ class ProductionAdminController extends Controller
             'spk_id' => $validated['spk_id'] ?? null,
             'production_date' => $validated['production_date'],
             'shift' => $validated['shift'],
-            'buyer_id' => $validated['buyer_id'] ?? null,
             'part_id' => $requiresPart ? ($validated['part_id'] ?? null) : null,
-            'size_variant_id' => $validated['size_variant_id'] ?? null,
             'process_id' => $process->id,
+            'operator_id' => $validated['operator_id'],
             'repairable_qty' => 0,
             'scrap_qty' => 0,
             'notes' => $validated['notes'] ?? null,
@@ -1137,7 +1144,8 @@ class ProductionAdminController extends Controller
             foreach ($entries as $entry) {
                 ProductionEntry::create([
                     ...$base,
-                    'operator_id' => $entry['operator_id'],
+                    'buyer_id' => $entry['buyer_id'],
+                    'size_variant_id' => $entry['size_variant_id'],
                     'good_qty' => $entry['good_qty'],
                     'repairable_qty' => $entry['ng_qty'],
                     'ng_qty' => $entry['ng_qty'],

@@ -1304,34 +1304,39 @@ class ProductionAdminTest extends TestCase
         ]);
     }
 
-    public function test_binding_can_save_multiple_operators_in_one_submit(): void
+    public function test_binding_can_save_multiple_styles_for_one_operator_in_one_submit(): void
     {
         $buyer = Buyer::factory()->create();
-        $size = SizeVariant::factory()->create();
-        $firstOperator = Operator::create(['operator_code' => '27', 'name' => 'Harun', 'target_prod' => 6]);
-        $secondOperator = Operator::create(['operator_code' => '28', 'name' => 'Usmanto', 'target_prod' => 6]);
+        $firstSize = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
+        $secondSize = SizeVariant::factory()->create(['production_code' => 'B', 'code' => '12Q']);
+        $operator = Operator::create(['operator_code' => '27', 'name' => 'Harun', 'target_prod' => 6]);
         $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
 
         $page = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
         $page->assertOk();
-        $page->assertSee('Tambah Operator');
-        $page->assertSee('name="entries[0][operator_id]"', false);
+        $page->assertSee('Tambah Style / Size');
+        $page->assertSee('name="operator_id"', false);
+        $page->assertSee('name="entries[0][buyer_id]"', false);
+        $page->assertSee('name="entries[0][size_variant_id]"', false);
         $page->assertSee('name="entries[0][good_qty]"', false);
 
         $response = $this->post('/production-entries', [
             'production_date' => '2026-07-05',
             'shift' => '1',
-            'buyer_id' => $buyer->id,
-            'size_variant_id' => $size->id,
+            'operator_id' => $operator->id,
             'process_id' => $binding->id,
             'entries' => [
                 [
-                    'operator_id' => $firstOperator->id,
+                    'buyer_id' => $buyer->id,
+                    'production_code' => 'A',
+                    'size_variant_id' => $firstSize->id,
                     'good_qty' => 10,
                     'reject_qty' => 0,
                 ],
                 [
-                    'operator_id' => $secondOperator->id,
+                    'buyer_id' => $buyer->id,
+                    'production_code' => 'B',
+                    'size_variant_id' => $secondSize->id,
                     'good_qty' => 8,
                     'reject_qty' => 2,
                     'reject_reason' => 'Bongkar',
@@ -1344,13 +1349,17 @@ class ProductionAdminTest extends TestCase
 
         $this->assertDatabaseHas('production_entries', [
             'process_id' => $binding->id,
-            'operator_id' => $firstOperator->id,
+            'operator_id' => $operator->id,
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $firstSize->id,
             'good_qty' => 10,
             'ng_qty' => 0,
         ]);
         $this->assertDatabaseHas('production_entries', [
             'process_id' => $binding->id,
-            'operator_id' => $secondOperator->id,
+            'operator_id' => $operator->id,
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $secondSize->id,
             'good_qty' => 8,
             'ng_qty' => 2,
             'reject_reason' => 'Bongkar',

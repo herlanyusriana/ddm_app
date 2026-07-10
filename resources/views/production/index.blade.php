@@ -117,7 +117,7 @@
         border-bottom: 1px solid var(--line);
         display: grid;
         gap: 10px;
-        grid-template-columns: minmax(180px, 1fr) 92px 92px minmax(130px, 160px) auto;
+        grid-template-columns: minmax(120px, 1fr) 80px minmax(120px, 1fr) 82px 82px minmax(120px, 150px) auto;
         padding-bottom: 10px;
     }
 
@@ -200,23 +200,59 @@
                     <div data-production-mode-fields>
                         <div class="field" data-binding-operator-field>
                             <label>Operator Binding</label>
-                            <div class="field-hint">Bisa isi beberapa operator dalam sekali simpan.</div>
+                            <input
+                                name="operator_search"
+                                list="operator-suggestions"
+                                value="{{ old('operator_search') }}"
+                                placeholder="Ketik nomor atau nama operator..."
+                                autocomplete="off"
+                                data-operator-search
+                                required
+                            >
+                            <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id>
+                            <datalist id="operator-suggestions">
+                                @foreach($operators as $operator)
+                                    <option
+                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
+                                        data-operator-id="{{ $operator->id }}"
+                                    ></option>
+                                @endforeach
+                            </datalist>
+                            <div class="field-hint">Satu HP untuk satu operator, lalu bisa input beberapa style/size sekaligus.</div>
                         </div>
                         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
                         <div class="multi-entry-panel" data-multi-entry-panel>
                             <div data-multi-entry-list>
                                 <div class="multi-entry-row" data-multi-entry-row>
                                     <div class="operator-cell">
-                                        <label>Operator</label>
-                                        <input
-                                            name="entries[0][operator_search]"
-                                            list="operator-suggestions"
-                                            placeholder="Ketik nomor atau nama operator..."
-                                            autocomplete="off"
-                                            data-multi-operator-search
-                                            required
-                                        >
-                                        <input type="hidden" name="entries[0][operator_id]" data-multi-operator-id>
+                                        <label>Buyer</label>
+                                        <select name="entries[0][buyer_id]" data-row-buyer required>
+                                            <option value="">— Buyer —</option>
+                                            @foreach($buyers as $buyer)
+                                                <option value="{{ $buyer->id }}">{{ $buyer->code }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label>Code</label>
+                                        <select name="entries[0][production_code]" data-row-production-code required>
+                                            <option value="">—</option>
+                                            <option value="A">A</option>
+                                            <option value="B">B</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label>Size</label>
+                                        <select name="entries[0][size_variant_id]" data-row-size required disabled>
+                                            <option value="">— Code —</option>
+                                            @foreach($sizes as $s)
+                                                <option
+                                                    value="{{ $s->id }}"
+                                                    data-production-code="{{ $s->production_code }}"
+                                                    data-size-code="{{ $s->code }}"
+                                                >{{ $s->display_label }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                     <div>
                                         <label>Good</label>
@@ -241,17 +277,9 @@
                                 </div>
                             </div>
                             <div class="multi-entry-actions">
-                                <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Operator</button>
+                                <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Style / Size</button>
                                 <div class="field-hint" data-multi-entry-summary>Total input: 0 pcs dari 1 baris.</div>
                             </div>
-                            <datalist id="operator-suggestions">
-                                @foreach($operators as $operator)
-                                    <option
-                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
-                                        data-operator-id="{{ $operator->id }}"
-                                    ></option>
-                                @endforeach
-                            </datalist>
                         </div>
                     </div>
                 @endif
@@ -295,7 +323,13 @@
                     </div>
                 </div>
 
-                <div data-custom-production-fields data-production-mode-fields data-page-type="{{ $pageType }}" class="form-grid">
+                <div
+                    data-custom-production-fields
+                    data-production-mode-fields
+                    data-page-type="{{ $pageType }}"
+                    class="form-grid"
+                    @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0) data-binding-master-fields-hidden style="display:none" @endif
+                >
                     <div class="field">
                         <label>Kode Buyer</label>
                         <select name="buyer_id" required data-custom-buyer-select>
@@ -603,6 +637,10 @@
         document.querySelectorAll('[data-production-mode-fields]').forEach((section) => {
             section.style.display = troubleMode ? 'none' : '';
             section.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = troubleMode);
+            if (!troubleMode && section.hasAttribute('data-binding-master-fields-hidden')) {
+                section.style.display = 'none';
+                section.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = true);
+            }
         });
         troubleFields.style.display = troubleMode ? '' : 'none';
         troubleFields.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = !troubleMode);
@@ -616,14 +654,17 @@
     document.querySelectorAll('input[name="record_mode"]').forEach((radio) => radio.addEventListener('change', syncRecordMode));
     syncRecordMode();
 
-    const operatorSearch = document.querySelector('[data-operator-search]');
-    const operatorId = document.querySelector('[data-operator-id]');
     const operatorOptions = Array.from(document.querySelectorAll('#operator-suggestions option'));
 
-    operatorSearch?.addEventListener('input', () => {
-        const selected = operatorOptions.find((option) => option.value === operatorSearch.value);
-        operatorId.value = selected?.dataset.operatorId || '';
-        operatorSearch.setCustomValidity(selected ? '' : 'Pilih operator dari suggestion.');
+    document.querySelectorAll('[data-operator-search]').forEach((operatorSearch) => {
+        operatorSearch.addEventListener('input', () => {
+            const operatorId = operatorSearch.closest('.field')?.querySelector('[data-operator-id]');
+            const selected = operatorOptions.find((option) => option.value === operatorSearch.value);
+            if (operatorId) {
+                operatorId.value = selected?.dataset.operatorId || '';
+            }
+            operatorSearch.setCustomValidity(selected ? '' : 'Pilih operator dari suggestion.');
+        });
     });
 
     function syncRejectReason() {
@@ -651,12 +692,12 @@
     const multiEntryList = document.querySelector('[data-multi-entry-list]');
     const addMultiEntryButton = document.querySelector('[data-add-multi-entry]');
     const multiEntrySummary = document.querySelector('[data-multi-entry-summary]');
-    const multiOperatorOptions = Array.from(document.querySelectorAll('#operator-suggestions option'));
 
     function reindexMultiRows() {
         multiEntryList?.querySelectorAll('[data-multi-entry-row]').forEach((row, index) => {
-            row.querySelector('[data-multi-operator-search]').name = `entries[${index}][operator_search]`;
-            row.querySelector('[data-multi-operator-id]').name = `entries[${index}][operator_id]`;
+            row.querySelector('[data-row-buyer]').name = `entries[${index}][buyer_id]`;
+            row.querySelector('[data-row-production-code]').name = `entries[${index}][production_code]`;
+            row.querySelector('[data-row-size]').name = `entries[${index}][size_variant_id]`;
             row.querySelector('[data-multi-good]').name = `entries[${index}][good_qty]`;
             row.querySelector('[data-multi-reject]').name = `entries[${index}][reject_qty]`;
             row.querySelector('[data-multi-reject-reason-select]').name = `entries[${index}][reject_reason]`;
@@ -664,12 +705,38 @@
         });
     }
 
-    function syncMultiOperator(row) {
-        const search = row.querySelector('[data-multi-operator-search]');
-        const idInput = row.querySelector('[data-multi-operator-id]');
-        const selected = multiOperatorOptions.find((option) => option.value === search.value);
-        idInput.value = selected?.dataset.operatorId || '';
-        search.setCustomValidity(selected ? '' : 'Pilih operator dari suggestion.');
+    function syncRowProductionCode(row) {
+        const productionCodeSelect = row.querySelector('[data-row-production-code]');
+        const sizeSelect = row.querySelector('[data-row-size]');
+        const productionCode = productionCodeSelect?.value || '';
+        const currentOption = sizeSelect?.selectedOptions[0];
+        const currentSizeCode = currentOption?.dataset.sizeCode || '';
+
+        if (!sizeSelect) {
+            return;
+        }
+
+        sizeSelect.disabled = !productionCode;
+        sizeSelect.options[0].textContent = productionCode ? '— Size —' : '— Code —';
+
+        Array.from(sizeSelect.options).forEach((option) => {
+            if (!option.value) {
+                return;
+            }
+
+            const matchesCode = Boolean(productionCode) && option.dataset.productionCode === productionCode;
+            option.hidden = !matchesCode;
+            option.disabled = !matchesCode;
+        });
+
+        const matchingOption = currentSizeCode
+            ? Array.from(sizeSelect.options).find((option) =>
+                option.dataset.productionCode === productionCode
+                && option.dataset.sizeCode === currentSizeCode
+            )
+            : null;
+
+        sizeSelect.value = matchingOption ? matchingOption.value : '';
     }
 
     function syncMultiRejectReason(row) {
@@ -707,7 +774,7 @@
     }
 
     function bindMultiRow(row) {
-        row.querySelector('[data-multi-operator-search]')?.addEventListener('input', () => syncMultiOperator(row));
+        row.querySelector('[data-row-production-code]')?.addEventListener('change', () => syncRowProductionCode(row));
         row.querySelector('[data-multi-reject]')?.addEventListener('input', () => {
             syncMultiRejectReason(row);
             syncMultiSummary();
@@ -724,6 +791,7 @@
             updateSpkTargetInfo();
         });
         syncMultiRejectReason(row);
+        syncRowProductionCode(row);
     }
 
     addMultiEntryButton?.addEventListener('click', () => {
@@ -739,7 +807,7 @@
         });
         row.querySelectorAll('select').forEach((select) => {
             select.value = '';
-            select.disabled = true;
+            select.disabled = select.hasAttribute('data-row-size') || select.hasAttribute('data-multi-reject-reason-select');
         });
         row.querySelector('[data-multi-reject-reason-field]').style.display = 'none';
         multiEntryList.appendChild(row);
