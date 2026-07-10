@@ -52,7 +52,8 @@
         p { margin: 0; }
 
         /* ── LAYOUT ── */
-        .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+        .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; transition: grid-template-columns .18s ease; }
+        body.sidebar-collapsed .shell { grid-template-columns: 0 1fr; }
         .mobile-bar, .sidebar-backdrop, .app-bottom-nav, .install-prompt { display: none; }
 
         /* ── SIDEBAR ── */
@@ -66,6 +67,15 @@
             top: 0;
             height: 100vh;
             overflow-y: auto;
+            transition: opacity .15s ease, transform .18s ease, visibility .18s ease;
+            width: 260px;
+        }
+
+        body.sidebar-collapsed .sidebar {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(-100%);
+            visibility: hidden;
         }
 
         .sidebar-brand {
@@ -204,6 +214,33 @@
         .topbar-left { display: flex; flex-direction: column; gap: 2px; }
         .topbar-left h1 { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
         .topbar-left p { color: var(--muted); font-size: 13px; font-weight: 500; }
+
+        .topbar-title-wrap {
+            align-items: center;
+            display: flex;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .sidebar-toggle {
+            align-items: center;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            color: var(--ink2);
+            cursor: pointer;
+            display: inline-flex;
+            font-weight: 800;
+            gap: 7px;
+            min-height: 38px;
+            padding: 0 12px;
+        }
+
+        .sidebar-toggle:hover {
+            background: var(--primary-soft);
+            border-color: #bfdbfe;
+            color: var(--primary-dark);
+        }
 
         .topbar-right { display: flex; align-items: center; gap: 10px; }
 
@@ -390,6 +427,8 @@
 
         @media (max-width:1100px) {
             .shell { grid-template-columns: 220px 1fr; }
+            body.sidebar-collapsed .shell { grid-template-columns: 0 1fr; }
+            .sidebar { width: 220px; }
             .form-row, .form-row-3 { grid-template-columns: 1fr 1fr; }
             .grid-4 { grid-template-columns: 1fr 1fr; }
             .processes { grid-template-columns: repeat(3,1fr); }
@@ -407,6 +446,7 @@
                 body { background: #f1f5f9; }
             }
             .shell { display: block; min-height: 100vh; }
+            body.sidebar-collapsed .shell { display: block; }
             .mobile-bar {
                 align-items: center;
                 background: var(--sidebar-bg);
@@ -449,6 +489,11 @@
                 width: 280px;
                 z-index: 70;
             }
+            body.sidebar-collapsed .sidebar {
+                opacity: 1;
+                pointer-events: auto;
+                visibility: visible;
+            }
             body.menu-open .sidebar { transform: translateX(0); }
             .sidebar-backdrop {
                 background: rgba(15,23,42,.5);
@@ -466,6 +511,7 @@
                 padding: 12px;
                 position: static;
             }
+            .sidebar-toggle { display: none; }
             .topbar-left h1 { font-size: 18px; }
             .topbar-left p { font-size: 12px; }
             .topbar-right { align-items: stretch; flex-wrap: wrap; width: 100%; }
@@ -652,9 +698,15 @@
     <!-- MAIN -->
     <main class="main">
         <div class="topbar">
-            <div class="topbar-left">
-                <h1>{{ $title ?? 'DDM Production' }}</h1>
-                @isset($subtitle)<p>{{ $subtitle }}</p>@endisset
+            <div class="topbar-title-wrap">
+                <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-expanded="true">
+                    <span data-sidebar-toggle-icon>☰</span>
+                    <span>Sidebar</span>
+                </button>
+                <div class="topbar-left">
+                    <h1>{{ $title ?? 'DDM Production' }}</h1>
+                    @isset($subtitle)<p>{{ $subtitle }}</p>@endisset
+                </div>
             </div>
             <div class="topbar-right">
                 @yield('topbar-actions')
@@ -716,6 +768,31 @@
     });
     document.querySelectorAll('[data-menu-close], .sidebar .nav-link, .sidebar .nav-sublink').forEach((target) => {
         target.addEventListener('click', () => document.body.classList.remove('menu-open'));
+    });
+
+    const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
+    const sidebarToggleIcon = document.querySelector('[data-sidebar-toggle-icon]');
+
+    function syncSidebarToggle() {
+        const collapsed = document.body.classList.contains('sidebar-collapsed');
+        sidebarToggle?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        if (sidebarToggleIcon) {
+            sidebarToggleIcon.textContent = collapsed ? '☰' : '⇤';
+        }
+    }
+
+    if (localStorage.getItem('ddm-sidebar-collapsed') === '1') {
+        document.body.classList.add('sidebar-collapsed');
+    }
+    syncSidebarToggle();
+
+    sidebarToggle?.addEventListener('click', () => {
+        document.body.classList.toggle('sidebar-collapsed');
+        localStorage.setItem(
+            'ddm-sidebar-collapsed',
+            document.body.classList.contains('sidebar-collapsed') ? '1' : '0'
+        );
+        syncSidebarToggle();
     });
 
     window.addEventListener('beforeinstallprompt', (event) => {

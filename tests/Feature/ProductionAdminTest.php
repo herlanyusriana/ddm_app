@@ -45,6 +45,8 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('rel="manifest"', false);
         $response->assertSee('/service-worker.js', false);
         $response->assertSee('data-menu-toggle', false);
+        $response->assertSee('data-sidebar-toggle', false);
+        $response->assertSee('ddm-sidebar-collapsed', false);
         $response->assertSee('app-bottom-nav', false);
         $response->assertSee('data-install-prompt', false);
         $response->assertSee('data-install-button', false);
