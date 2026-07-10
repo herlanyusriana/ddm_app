@@ -298,8 +298,9 @@
                         <label>Code Produksi</label>
                         <select name="production_code" required data-production-code-select>
                             <option value="">— Pilih Code —</option>
-                            <option value="A">A</option>
-                            <option value="B">B</option>
+                            @foreach($sizes->pluck('production_code')->filter()->unique()->sort() as $productionCode)
+                                <option value="{{ $productionCode }}">{{ $productionCode }}</option>
+                            @endforeach
                         </select>
                         <div class="field-hint">Code menentukan pilihan Size dan Point produksi.</div>
                     </div>
@@ -353,14 +354,15 @@
                                         @endforeach
                                     </select>
                                 </div>
-                                <div>
-                                    <label>Code</label>
-                                    <select name="entries[0][production_code]" data-row-production-code required>
-                                        <option value="">—</option>
-                                        <option value="A">A</option>
-                                        <option value="B">B</option>
-                                    </select>
-                                </div>
+                                    <div>
+                                        <label>Code</label>
+                                        <select name="entries[0][production_code]" data-row-production-code required>
+                                            <option value="">— Code —</option>
+                                            @foreach($sizes->pluck('production_code')->filter()->unique()->sort() as $productionCode)
+                                                <option value="{{ $productionCode }}">{{ $productionCode }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 <div>
                                     <label>Size</label>
                                     <select name="entries[0][size_variant_id]" data-row-size required disabled>

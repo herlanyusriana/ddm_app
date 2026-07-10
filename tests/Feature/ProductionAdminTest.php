@@ -634,8 +634,20 @@ class ProductionAdminTest extends TestCase
         $createPage->assertOk();
         $createPage->assertSee('Tambah Size');
         $createPage->assertSee('name="code"', false);
+        $createPage->assertSee('name="production_code"', false);
+        $createPage->assertSee('placeholder="A / B / WF / AMZ"', false);
         $createPage->assertSee('placeholder="12Q"', false);
+        $createPage->assertDontSee('<select name="production_code"', false);
         $createPage->assertDontSee('Hapus');
+
+        $createResponse = $this->post('/masters/sizes', [
+            'production_code' => 'WF',
+            'code' => '14TXL',
+            'point' => 2.25,
+        ]);
+        $createResponse->assertSessionHasNoErrors();
+        $createResponse->assertRedirect('/masters/sizes');
+        $this->assertDatabaseHas('size_variants', ['production_code' => 'WF', 'code' => '14TXL', 'point' => 2.25]);
 
         $deleteResponse = $this->delete("/masters/sizes/{$size->id}");
         $deleteResponse->assertRedirect('/masters/sizes');
@@ -703,7 +715,7 @@ class ProductionAdminTest extends TestCase
         $xlsx = $this->xlsx([
             ['Code', 'Type', 'Point'],
             ['A', '12Q', '1,3'],
-            ['B', '12Q', '0,65'],
+            ['WF', '12Q', '0,65'],
         ]);
 
         $import = $this->post('/masters/sizes/import', [
@@ -713,7 +725,7 @@ class ProductionAdminTest extends TestCase
         $import->assertSessionHasNoErrors();
         $import->assertRedirect('/masters/sizes');
         $this->assertDatabaseHas('size_variants', ['production_code' => 'A', 'code' => '12Q', 'point' => 1.3]);
-        $this->assertDatabaseHas('size_variants', ['production_code' => 'B', 'code' => '12Q', 'point' => 0.65]);
+        $this->assertDatabaseHas('size_variants', ['production_code' => 'WF', 'code' => '12Q', 'point' => 0.65]);
         $this->assertDatabaseCount('size_variants', 2);
     }
 
@@ -1568,14 +1580,15 @@ class ProductionAdminTest extends TestCase
     {
         Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
         SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F', 'point' => 2]);
-        SizeVariant::factory()->create(['production_code' => 'B', 'code' => '10F', 'point' => 1]);
+        SizeVariant::factory()->create(['production_code' => 'WF', 'code' => '10F', 'point' => 1]);
 
         $page = $this->get('/input-proses');
 
         $page->assertOk();
         $page->assertSee('name="production_code"', false);
         $page->assertSee('data-production-code="A"', false);
-        $page->assertSee('data-production-code="B"', false);
+        $page->assertSee('data-production-code="WF"', false);
+        $page->assertSee('<option value="WF">WF</option>', false);
         $page->assertSee('Code Produksi');
         $page->assertSeeInOrder(['Code Produksi', 'Kode Size']);
         $page->assertSee('option.hidden = !matchesCode', false);

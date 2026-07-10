@@ -45,7 +45,7 @@
                 </div>
             @elseif($type === 'sizes')
                 <div class="form-row">
-                    <div class="field"><label>Code Produksi</label><select name="production_code">@foreach(['A','B'] as $value)<option value="{{ $value }}" @selected(old('production_code', $record->production_code) === $value)>{{ $value }}</option>@endforeach</select></div>
+                    <div class="field"><label>Code Produksi</label><input name="production_code" value="{{ old('production_code', $record->production_code) }}" required></div>
                     <div class="field"><label>Type</label><input name="code" value="{{ old('code', $record->code) }}" required></div>
                     <div class="field"><label>Point</label><input type="number" min="0" step="0.01" name="point" value="{{ old('point', $record->point) }}" required></div>
                     <div class="field"><label>Status</label><select name="is_active"><option value="1" @selected($record->is_active)>Aktif</option><option value="0" @selected(!$record->is_active)>Arsip</option></select></div>

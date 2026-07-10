@@ -555,7 +555,7 @@ class ProductionAdminController extends Controller
             $productionCode = strtoupper((string) $request->input('production_code'));
             $request->merge(['production_code' => $productionCode]);
             $record->update($request->validate([
-                'production_code' => ['required', Rule::in(['A', 'B'])],
+                'production_code' => ['required', 'string', 'max:40'],
                 'code' => [
                     'required', 'string', 'max:40',
                     Rule::unique('size_variants', 'code')
@@ -834,7 +834,7 @@ class ProductionAdminController extends Controller
         $productionCode = strtoupper((string) $request->input('production_code'));
         $request->merge(['production_code' => $productionCode]);
         SizeVariant::create($request->validate([
-            'production_code' => ['required', Rule::in(['A', 'B'])],
+            'production_code' => ['required', 'string', 'max:40'],
             'code' => [
                 'required', 'string', 'max:40',
                 Rule::unique('size_variants', 'code')->where('production_code', $productionCode),
@@ -877,7 +877,7 @@ class ProductionAdminController extends Controller
             $type = strtoupper(trim((string) ($row['type'] ?? '')));
             $point = $this->nullableNumber($row['point'] ?? null);
 
-            if (! in_array($productionCode, ['A', 'B'], true) || $type === '' || $point === null || $point < 0) {
+            if ($productionCode === '' || $type === '' || $point === null || $point < 0) {
                 continue;
             }
 
@@ -1060,7 +1060,7 @@ class ProductionAdminController extends Controller
             'operator_id' => [$process && strcasecmp($process->name, 'Binding') === 0 ? 'required' : 'nullable', 'exists:operators,id'],
             'entries' => ['required', 'array', 'min:1'],
             'entries.*.buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
-            'entries.*.production_code' => ['nullable', Rule::in(['A', 'B'])],
+            'entries.*.production_code' => ['nullable', 'string', 'max:40'],
             'entries.*.size_variant_id' => [
                 $isCustomEntry || ($requiresPart && ! $spk?->size_variant_id) ? 'required' : 'nullable',
                 'exists:size_variants,id',
