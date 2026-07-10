@@ -1135,7 +1135,7 @@ class ProductionAdminTest extends TestCase
         );
     }
 
-    public function test_binding_operator_field_is_after_active_process_before_quantity(): void
+    public function test_binding_operator_field_is_at_top_before_production_master_fields(): void
     {
         Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
         Buyer::factory()->create(['code' => 'AMZ']);
@@ -1146,22 +1146,32 @@ class ProductionAdminTest extends TestCase
 
         $page->assertOk();
         $content = $page->getContent();
+        $operatorPosition = strpos($content, '<label>Operator Binding</label>');
+        $spkPosition = strpos($content, '<label>SPK / Lot Produksi</label>');
+        $buyerPosition = strpos($content, '<label>Kode Buyer</label>');
         $sizePosition = strpos($content, '<label>Kode Size</label>');
         $processPosition = strpos($content, '<label>Proses aktif</label>');
-        $operatorPosition = strpos($content, '<label>Operator Binding</label>');
         $quantityPosition = strpos($content, 'Jumlah Produksi');
 
         $this->assertLessThan(
-            $processPosition,
-            $sizePosition
-        );
-        $this->assertLessThan(
-            $operatorPosition,
-            $processPosition
-        );
-        $this->assertLessThan(
-            $quantityPosition,
+            $spkPosition,
             $operatorPosition
+        );
+        $this->assertLessThan(
+            $buyerPosition,
+            $operatorPosition
+        );
+        $this->assertLessThan(
+            $sizePosition,
+            $operatorPosition
+        );
+        $this->assertLessThan(
+            $processPosition,
+            $operatorPosition
+        );
+        $this->assertLessThan(
+            $spkPosition,
+            $quantityPosition
         );
     }
 

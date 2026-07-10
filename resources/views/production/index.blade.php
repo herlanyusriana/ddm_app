@@ -196,6 +196,66 @@
                 <input type="hidden" name="production_date" value="{{ $date }}">
                 <input type="hidden" name="shift" value="{{ $shift }}">
 
+                @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
+                    <div data-production-mode-fields>
+                        <div class="field" data-binding-operator-field>
+                            <label>Operator Binding</label>
+                            <div class="field-hint">Bisa isi beberapa operator dalam sekali simpan.</div>
+                        </div>
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
+                        <div class="multi-entry-panel" data-multi-entry-panel>
+                            <div data-multi-entry-list>
+                                <div class="multi-entry-row" data-multi-entry-row>
+                                    <div class="operator-cell">
+                                        <label>Operator</label>
+                                        <input
+                                            name="entries[0][operator_search]"
+                                            list="operator-suggestions"
+                                            placeholder="Ketik nomor atau nama operator..."
+                                            autocomplete="off"
+                                            data-multi-operator-search
+                                            required
+                                        >
+                                        <input type="hidden" name="entries[0][operator_id]" data-multi-operator-id>
+                                    </div>
+                                    <div>
+                                        <label>Good</label>
+                                        <input type="number" min="0" name="entries[0][good_qty]" value="0" data-multi-good>
+                                    </div>
+                                    <div>
+                                        <label>Reject</label>
+                                        <input type="number" min="0" name="entries[0][reject_qty]" value="0" data-multi-reject>
+                                    </div>
+                                    <div class="reason-cell" data-multi-reject-reason-field style="display:none">
+                                        <label>Alasan Reject</label>
+                                        <select name="entries[0][reject_reason]" data-multi-reject-reason-select disabled>
+                                            <option value="">— Alasan —</option>
+                                            @foreach($rejectReasons as $reason)
+                                                <option value="{{ $reason }}">{{ $reason }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="remove-cell">
+                                        <button type="button" class="btn btn-secondary btn-mini" data-remove-multi-entry style="display:none">Hapus</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="multi-entry-actions">
+                                <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Operator</button>
+                                <div class="field-hint" data-multi-entry-summary>Total input: 0 pcs dari 1 baris.</div>
+                            </div>
+                            <datalist id="operator-suggestions">
+                                @foreach($operators as $operator)
+                                    <option
+                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
+                                        data-operator-id="{{ $operator->id }}"
+                                    ></option>
+                                @endforeach
+                            </datalist>
+                        </div>
+                    </div>
+                @endif
+
                 <div class="field">
                     <label>SPK / Lot Produksi</label>
                     <select name="spk_id">
@@ -308,61 +368,7 @@
 
                 <div data-production-mode-fields>
                     @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
-                        <div class="field" data-binding-operator-field>
-                            <label>Operator Binding</label>
-                            <div class="field-hint">Bisa isi beberapa operator dalam sekali simpan.</div>
-                        </div>
-                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
-                        <div class="multi-entry-panel" data-multi-entry-panel>
-                            <div data-multi-entry-list>
-                                <div class="multi-entry-row" data-multi-entry-row>
-                                    <div class="operator-cell">
-                                        <label>Operator</label>
-                                        <input
-                                            name="entries[0][operator_search]"
-                                            list="operator-suggestions"
-                                            placeholder="Ketik nomor atau nama operator..."
-                                            autocomplete="off"
-                                            data-multi-operator-search
-                                            required
-                                        >
-                                        <input type="hidden" name="entries[0][operator_id]" data-multi-operator-id>
-                                    </div>
-                                    <div>
-                                        <label>Good</label>
-                                        <input type="number" min="0" name="entries[0][good_qty]" value="0" data-multi-good>
-                                    </div>
-                                    <div>
-                                        <label>Reject</label>
-                                        <input type="number" min="0" name="entries[0][reject_qty]" value="0" data-multi-reject>
-                                    </div>
-                                    <div class="reason-cell" data-multi-reject-reason-field style="display:none">
-                                        <label>Alasan Reject</label>
-                                        <select name="entries[0][reject_reason]" data-multi-reject-reason-select disabled>
-                                            <option value="">— Alasan —</option>
-                                            @foreach($rejectReasons as $reason)
-                                                <option value="{{ $reason }}">{{ $reason }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="remove-cell">
-                                        <button type="button" class="btn btn-secondary btn-mini" data-remove-multi-entry style="display:none">Hapus</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="multi-entry-actions">
-                                <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Operator</button>
-                                <div class="field-hint" data-multi-entry-summary>Total input: 0 pcs dari 1 baris.</div>
-                            </div>
-                            <datalist id="operator-suggestions">
-                                @foreach($operators as $operator)
-                                    <option
-                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
-                                        data-operator-id="{{ $operator->id }}"
-                                    ></option>
-                                @endforeach
-                            </datalist>
-                        </div>
+                        {{-- Jumlah produksi Binding sudah berada di paling atas bersama pilihan operator. --}}
                     @else
                         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
                         @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
