@@ -421,6 +421,32 @@ class ProductionAdminController extends Controller
 
     public function storeBindingRejectStock(Request $request): RedirectResponse
     {
+        if (is_array($request->input('entries'))) {
+            $validated = $this->validatedMultipleBindingRejectStock($request);
+            $base = [
+                'transaction_date' => $validated['transaction_date'],
+                'transaction_time' => $validated['transaction_time'] ?? null,
+                'pallet' => $validated['pallet'] ?? null,
+                'po_no' => $validated['po_no'] ?? null,
+            ];
+
+            DB::transaction(function () use ($validated, $base) {
+                foreach ($validated['entries'] as $entry) {
+                    BindingRejectStock::create([
+                        ...$base,
+                        'buyer_id' => $entry['buyer_id'],
+                        'size_variant_id' => $entry['size_variant_id'],
+                        'qty_in' => (int) $entry['qty_in'],
+                        'qty_out' => (int) $entry['qty_out'],
+                        'paraf' => $entry['paraf'] ?? null,
+                    ]);
+                }
+            });
+
+            return redirect('/binding-reject-stock?date='.$validated['transaction_date'])
+                ->with('status', count($validated['entries']).' transaksi stock reject Binding tersimpan.');
+        }
+
         BindingRejectStock::create($this->validatedBindingRejectStock($request));
 
         return redirect('/binding-reject-stock?date='.$request->input('transaction_date'))
@@ -459,6 +485,35 @@ class ProductionAdminController extends Controller
         if (((int) $validated['qty_in'] + (int) $validated['qty_out']) <= 0) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'qty_in' => 'IN atau OUT harus lebih dari 0.',
+            ]);
+        }
+
+        return $validated;
+    }
+
+    private function validatedMultipleBindingRejectStock(Request $request): array
+    {
+        $validated = $request->validate([
+            'transaction_date' => ['required', 'date'],
+            'transaction_time' => ['nullable', 'date_format:H:i'],
+            'pallet' => ['nullable', 'string', 'max:80'],
+            'po_no' => ['nullable', 'string', 'max:80'],
+            'entries' => ['required', 'array', 'min:1'],
+            'entries.*.buyer_id' => ['required', 'exists:buyers,id'],
+            'entries.*.size_variant_id' => ['required', 'exists:size_variants,id'],
+            'entries.*.qty_in' => ['required', 'integer', 'min:0'],
+            'entries.*.qty_out' => ['required', 'integer', 'min:0'],
+            'entries.*.paraf' => ['nullable', 'string', 'max:120'],
+        ]);
+
+        $validated['entries'] = collect($validated['entries'])
+            ->filter(fn (array $entry) => ((int) $entry['qty_in'] + (int) $entry['qty_out']) > 0)
+            ->values()
+            ->all();
+
+        if (empty($validated['entries'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'entries' => 'Minimal satu baris harus punya IN atau OUT lebih dari 0.',
             ]);
         }
 

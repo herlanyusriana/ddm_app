@@ -1800,7 +1800,9 @@ class ProductionAdminTest extends TestCase
         $this->get('/binding-reject-stock?date=2026-07-05')
             ->assertOk()
             ->assertSee('Data Reject Binding')
-            ->assertSee('Stock Card');
+            ->assertSee('Stock Card')
+            ->assertSee('name="entries[0][buyer_id]"', false)
+            ->assertSee('+ Tambah Baris');
 
         $this->post('/binding-reject-stock', [
             'transaction_date' => '2026-07-05',
@@ -1846,6 +1848,54 @@ class ProductionAdminTest extends TestCase
 
         $this->delete('/binding-reject-stock/'.$stockId)->assertRedirect();
         $this->assertDatabaseMissing('binding_reject_stocks', ['id' => $stockId]);
+    }
+
+    public function test_binding_reject_stock_can_save_multiple_rows_for_one_pallet(): void
+    {
+        $amazon = Buyer::factory()->create(['code' => 'AMZ']);
+        $wayfair = Buyer::factory()->create(['code' => 'WF']);
+        $sizeOne = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '6T']);
+        $sizeTwo = SizeVariant::factory()->create(['production_code' => 'B', 'code' => '10F']);
+
+        $this->post('/binding-reject-stock', [
+            'transaction_date' => '2026-07-05',
+            'transaction_time' => '08:00',
+            'pallet' => 'PALLET-01',
+            'po_no' => 'PO-01',
+            'entries' => [
+                [
+                    'buyer_id' => $amazon->id,
+                    'size_variant_id' => $sizeOne->id,
+                    'qty_in' => 48,
+                    'qty_out' => 0,
+                    'paraf' => 'Dodi',
+                ],
+                [
+                    'buyer_id' => $wayfair->id,
+                    'size_variant_id' => $sizeTwo->id,
+                    'qty_in' => 0,
+                    'qty_out' => 3,
+                    'paraf' => 'Dodi',
+                ],
+            ],
+        ])->assertRedirect('/binding-reject-stock?date=2026-07-05');
+
+        $this->assertDatabaseHas('binding_reject_stocks', [
+            'pallet' => 'PALLET-01',
+            'po_no' => 'PO-01',
+            'buyer_id' => $amazon->id,
+            'size_variant_id' => $sizeOne->id,
+            'qty_in' => 48,
+            'qty_out' => 0,
+        ]);
+        $this->assertDatabaseHas('binding_reject_stocks', [
+            'pallet' => 'PALLET-01',
+            'po_no' => 'PO-01',
+            'buyer_id' => $wayfair->id,
+            'size_variant_id' => $sizeTwo->id,
+            'qty_in' => 0,
+            'qty_out' => 3,
+        ]);
     }
 
     public function test_production_input_uses_good_and_reject_only(): void
