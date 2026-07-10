@@ -932,7 +932,7 @@ class ProductionAdminController extends Controller
         $spk = Spk::find($request->input('spk_id'));
         $isCustomEntry = ! $spk;
 
-        if ($requiresOperator && is_array($request->input('entries'))) {
+        if (is_array($request->input('entries'))) {
             return $this->storeMultipleProductionEntries($request, $automaticWindow, $process, $spk, $isCustomEntry, $requiresPart);
         }
 
@@ -1057,7 +1057,7 @@ class ProductionAdminController extends Controller
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
             ],
-            'operator_id' => ['required', 'exists:operators,id'],
+            'operator_id' => [$process && strcasecmp($process->name, 'Binding') === 0 ? 'required' : 'nullable', 'exists:operators,id'],
             'entries' => ['required', 'array', 'min:1'],
             'entries.*.buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
             'entries.*.production_code' => ['nullable', Rule::in(['A', 'B'])],
@@ -1134,7 +1134,7 @@ class ProductionAdminController extends Controller
             'shift' => $validated['shift'],
             'part_id' => $requiresPart ? ($validated['part_id'] ?? null) : null,
             'process_id' => $process->id,
-            'operator_id' => $validated['operator_id'],
+            'operator_id' => strcasecmp($process->name, 'Binding') === 0 ? ($validated['operator_id'] ?? null) : null,
             'repairable_qty' => 0,
             'scrap_qty' => 0,
             'notes' => $validated['notes'] ?? null,

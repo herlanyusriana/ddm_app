@@ -220,69 +220,6 @@
                         <div class="field-hint">Satu HP untuk satu operator, lalu bisa input beberapa style/size sekaligus.</div>
                     </div>
 
-                    <div data-production-mode-fields>
-                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
-                        <div class="multi-entry-panel" data-multi-entry-panel>
-                            <div data-multi-entry-list>
-                                <div class="multi-entry-row" data-multi-entry-row>
-                                    <div class="operator-cell">
-                                        <label>Buyer</label>
-                                        <select name="entries[0][buyer_id]" data-row-buyer required>
-                                            <option value="">— Buyer —</option>
-                                            @foreach($buyers as $buyer)
-                                                <option value="{{ $buyer->id }}">{{ $buyer->code }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label>Code</label>
-                                        <select name="entries[0][production_code]" data-row-production-code required>
-                                            <option value="">—</option>
-                                            <option value="A">A</option>
-                                            <option value="B">B</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label>Size</label>
-                                        <select name="entries[0][size_variant_id]" data-row-size required disabled>
-                                            <option value="">— Code —</option>
-                                            @foreach($sizes as $s)
-                                                <option
-                                                    value="{{ $s->id }}"
-                                                    data-production-code="{{ $s->production_code }}"
-                                                    data-size-code="{{ $s->code }}"
-                                                >{{ $s->display_label }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label>Good</label>
-                                        <input type="number" min="0" name="entries[0][good_qty]" value="0" data-multi-good>
-                                    </div>
-                                    <div>
-                                        <label>Reject</label>
-                                        <input type="number" min="0" name="entries[0][reject_qty]" value="0" data-multi-reject>
-                                    </div>
-                                    <div class="reason-cell" data-multi-reject-reason-field style="display:none">
-                                        <label>Alasan Reject</label>
-                                        <select name="entries[0][reject_reason]" data-multi-reject-reason-select disabled>
-                                            <option value="">— Alasan —</option>
-                                            @foreach($rejectReasons as $reason)
-                                                <option value="{{ $reason }}">{{ $reason }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="remove-cell">
-                                        <button type="button" class="btn btn-secondary btn-mini" data-remove-multi-entry style="display:none">Hapus</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="multi-entry-actions">
-                                <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Style / Size</button>
-                                <div class="field-hint" data-multi-entry-summary>Total input: 0 pcs dari 1 baris.</div>
-                            </div>
-                        </div>
-                    </div>
                 @endif
 
                 <div class="field">
@@ -329,7 +266,8 @@
                     data-production-mode-fields
                     data-page-type="{{ $pageType }}"
                     class="form-grid"
-                    @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0) data-binding-master-fields-hidden style="display:none" @endif
+                    data-multi-master-fields-hidden
+                    style="display:none"
                 >
                     <div class="field">
                         <label>Kode Buyer</label>
@@ -402,30 +340,67 @@
                 @endif
 
                 <div data-production-mode-fields>
-                    @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
-                        {{-- Jumlah produksi Binding sudah berada di paling atas bersama pilihan operator. --}}
-                    @else
-                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
-                        <div class="qty-grid qty-grid-2">
-                            <div class="qty-box good">
-                                <label>✅ Good</label>
-                                <input type="number" min="0" name="good_qty" value="0">
-                            </div>
-                            <div class="qty-box rework">
-                                <label>🔧 Reject</label>
-                                <input type="number" min="0" name="reject_qty" value="0">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
+                    <div class="multi-entry-panel" data-multi-entry-panel>
+                        <div data-multi-entry-list>
+                            <div class="multi-entry-row" data-multi-entry-row>
+                                <div class="operator-cell">
+                                    <label>Buyer</label>
+                                    <select name="entries[0][buyer_id]" data-row-buyer required>
+                                        <option value="">— Buyer —</option>
+                                        @foreach($buyers as $buyer)
+                                            <option value="{{ $buyer->id }}">{{ $buyer->code }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Code</label>
+                                    <select name="entries[0][production_code]" data-row-production-code required>
+                                        <option value="">—</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Size</label>
+                                    <select name="entries[0][size_variant_id]" data-row-size required disabled>
+                                        <option value="">— Code —</option>
+                                        @foreach($sizes as $s)
+                                            <option
+                                                value="{{ $s->id }}"
+                                                data-production-code="{{ $s->production_code }}"
+                                                data-size-code="{{ $s->code }}"
+                                            >{{ $s->display_label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Good</label>
+                                    <input type="number" min="0" name="entries[0][good_qty]" value="0" data-multi-good>
+                                </div>
+                                <div>
+                                    <label>Reject</label>
+                                    <input type="number" min="0" name="entries[0][reject_qty]" value="0" data-multi-reject>
+                                </div>
+                                <div class="reason-cell" data-multi-reject-reason-field style="display:none">
+                                    <label>Alasan Reject</label>
+                                    <select name="entries[0][reject_reason]" data-multi-reject-reason-select disabled>
+                                        <option value="">— Alasan —</option>
+                                        @foreach($rejectReasons as $reason)
+                                            <option value="{{ $reason }}">{{ $reason }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="remove-cell">
+                                    <button type="button" class="btn btn-secondary btn-mini" data-remove-multi-entry style="display:none">Hapus</button>
+                                </div>
                             </div>
                         </div>
-                        <div class="field" data-reject-reason-field style="display:none;margin-top:12px">
-                            <label>Alasan Reject</label>
-                            <select name="reject_reason" data-reject-reason-select disabled>
-                                <option value="">— Pilih alasan reject —</option>
-                                @foreach($rejectReasons as $reason)
-                                    <option value="{{ $reason }}" @selected(old('reject_reason') === $reason)>{{ $reason }}</option>
-                                @endforeach
-                            </select>
+                        <div class="multi-entry-actions">
+                            <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Style / Size</button>
+                            <div class="field-hint" data-multi-entry-summary>Total input: 0 pcs dari 1 baris.</div>
                         </div>
-                    @endif
+                    </div>
                 </div>
 
                 <div class="form-grid" data-trouble-mode-fields style="display:none">
@@ -597,7 +572,7 @@
         document.querySelectorAll('[data-production-mode-fields]').forEach((section) => {
             section.style.display = troubleMode ? 'none' : '';
             section.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = troubleMode);
-            if (!troubleMode && section.hasAttribute('data-binding-master-fields-hidden')) {
+            if (!troubleMode && section.hasAttribute('data-multi-master-fields-hidden')) {
                 section.style.display = 'none';
                 section.querySelectorAll('input, select, textarea').forEach((field) => field.disabled = true);
             }

@@ -1151,7 +1151,6 @@ class ProductionAdminTest extends TestCase
         $buyerPosition = strpos($content, '<label>Kode Buyer</label>');
         $sizePosition = strpos($content, '<label>Kode Size</label>');
         $processPosition = strpos($content, '<label>Proses aktif</label>');
-        $quantityPosition = strpos($content, 'Jumlah Produksi');
 
         $this->assertLessThan(
             $spkPosition,
@@ -1168,10 +1167,6 @@ class ProductionAdminTest extends TestCase
         $this->assertLessThan(
             $processPosition,
             $operatorPosition
-        );
-        $this->assertLessThan(
-            $spkPosition,
-            $quantityPosition
         );
     }
 
@@ -1363,6 +1358,65 @@ class ProductionAdminTest extends TestCase
             'good_qty' => 8,
             'ng_qty' => 2,
             'reject_reason' => 'Bongkar',
+        ]);
+    }
+
+    public function test_non_binding_process_can_save_multiple_styles_in_one_submit(): void
+    {
+        $buyer = Buyer::factory()->create();
+        $firstSize = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '08T']);
+        $secondSize = SizeVariant::factory()->create(['production_code' => 'B', 'code' => '10T']);
+        $sewing = Process::factory()->create(['name' => 'Sewing', 'is_input_process' => true]);
+
+        $page = $this->get('/input-proses?process_id='.$sewing->id.'&production_date=2026-07-05&shift=1');
+        $page->assertOk();
+        $page->assertDontSee('Operator Binding');
+        $page->assertSee('Tambah Style / Size');
+        $page->assertSee('name="entries[0][buyer_id]"', false);
+        $page->assertSee('name="entries[0][size_variant_id]"', false);
+
+        $response = $this->post('/production-entries', [
+            'production_date' => '2026-07-05',
+            'shift' => '1',
+            'process_id' => $sewing->id,
+            'entries' => [
+                [
+                    'buyer_id' => $buyer->id,
+                    'production_code' => 'A',
+                    'size_variant_id' => $firstSize->id,
+                    'good_qty' => 6,
+                    'reject_qty' => 0,
+                ],
+                [
+                    'buyer_id' => $buyer->id,
+                    'production_code' => 'B',
+                    'size_variant_id' => $secondSize->id,
+                    'good_qty' => 4,
+                    'reject_qty' => 1,
+                    'reject_reason' => 'Pembersihan',
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('status', '2 input produksi tersimpan.');
+
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $sewing->id,
+            'operator_id' => null,
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $firstSize->id,
+            'good_qty' => 6,
+            'ng_qty' => 0,
+        ]);
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $sewing->id,
+            'operator_id' => null,
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $secondSize->id,
+            'good_qty' => 4,
+            'ng_qty' => 1,
+            'reject_reason' => 'Pembersihan',
         ]);
     }
 
