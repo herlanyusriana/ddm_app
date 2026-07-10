@@ -341,6 +341,11 @@
                 @endif
 
                 <div data-production-mode-fields>
+                    <div class="field" style="margin-bottom:12px">
+                        <label>Jam Input</label>
+                        <input type="time" name="input_time" value="{{ old('input_time', now('Asia/Jakarta')->format('H:i')) }}" required>
+                        <div class="field-hint">Isi jam produksi sebenarnya. Report per jam akan mengikuti jam ini, bukan jam submit.</div>
+                    </div>
                     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
                     <div class="multi-entry-panel" data-multi-entry-panel>
                         <div data-multi-entry-list>

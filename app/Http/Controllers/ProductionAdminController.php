@@ -945,6 +945,7 @@ class ProductionAdminController extends Controller
             'spk_id' => ['nullable', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'input_time' => ['nullable', 'date_format:H:i'],
             'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
             'part_id' => [
                 ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
@@ -1047,6 +1048,7 @@ class ProductionAdminController extends Controller
             'spk_id' => ['nullable', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'input_time' => ['nullable', 'date_format:H:i'],
             'buyer_id' => ['nullable', 'exists:buyers,id'],
             'part_id' => [
                 ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
@@ -1132,6 +1134,7 @@ class ProductionAdminController extends Controller
             'spk_id' => $validated['spk_id'] ?? null,
             'production_date' => $validated['production_date'],
             'shift' => $validated['shift'],
+            'input_time' => $validated['input_time'] ?? null,
             'part_id' => $requiresPart ? ($validated['part_id'] ?? null) : null,
             'process_id' => $process->id,
             'operator_id' => strcasecmp($process->name, 'Binding') === 0 ? ($validated['operator_id'] ?? null) : null,
@@ -1231,6 +1234,7 @@ class ProductionAdminController extends Controller
             'buyer_id' => ['required', 'exists:buyers,id'],
             'size_variant_id' => ['required', 'exists:size_variants,id'],
             'operator_id' => [$requiresOperator ? 'required' : 'nullable', 'exists:operators,id'],
+            'input_time' => ['nullable', 'date_format:H:i'],
             'good_qty' => ['required', 'integer', 'min:0'],
             'reject_qty' => ['required', 'integer', 'min:0'],
             'reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
@@ -1249,6 +1253,7 @@ class ProductionAdminController extends Controller
             'buyer_id' => $validated['buyer_id'],
             'size_variant_id' => $validated['size_variant_id'],
             'operator_id' => $requiresOperator ? ($validated['operator_id'] ?? null) : null,
+            'input_time' => $validated['input_time'] ?? null,
             'good_qty' => $validated['good_qty'],
             'repairable_qty' => $validated['reject_qty'],
             'scrap_qty' => 0,
@@ -1440,6 +1445,7 @@ class ProductionAdminController extends Controller
             'spk_id' => ['required', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'input_time' => ['nullable', 'date_format:H:i'],
             'buyer_id' => ['nullable', 'exists:buyers,id'],
             'part_id' => [$requiresPart && ! $spk?->part_id ? 'required' : 'nullable', 'exists:parts,id'],
             'size_variant_id' => [$requiresPart && ! $spk?->size_variant_id ? 'required' : 'nullable', 'exists:size_variants,id'],
@@ -1779,8 +1785,7 @@ class ProductionAdminController extends Controller
         };
 
         foreach ($entries as $entry) {
-            $timestamp = CarbonImmutable::parse($entry->created_at, config('app.timezone'))
-                ->setTimezone('Asia/Jakarta');
+            $timestamp = $this->entryProductionTimestamp($entry);
             $hourIndex = intdiv($timestamp->getTimestamp() - $start->getTimestamp(), 3600);
 
             if ($hourIndex >= 0 && $hourIndex < 7) {
@@ -1841,9 +1846,28 @@ class ProductionAdminController extends Controller
 
     private function entryInputTime(ProductionEntry $entry): string
     {
+        return $this->entryProductionTimestamp($entry)->format('H:i');
+    }
+
+    private function entryProductionTimestamp(ProductionEntry $entry): CarbonImmutable
+    {
+        if ($entry->input_time && preg_match('/(\d{1,2}):(\d{2})(?::\d{2})?\s*$/', (string) $entry->input_time, $matches)) {
+            $productionDate = $entry->production_date instanceof \DateTimeInterface
+                ? $entry->production_date->format('Y-m-d')
+                : (string) $entry->production_date;
+
+            $timestamp = CarbonImmutable::parse($productionDate, 'Asia/Jakarta')
+                ->setTime((int) $matches[1], (int) $matches[2]);
+
+            if ((string) $entry->shift === '3') {
+                $timestamp = $timestamp->addDay();
+            }
+
+            return $timestamp;
+        }
+
         return CarbonImmutable::parse($entry->created_at, config('app.timezone'))
-            ->setTimezone('Asia/Jakarta')
-            ->format('H:i');
+            ->setTimezone('Asia/Jakarta');
     }
 
     private function normalizeSheetHeader(?string $value): string

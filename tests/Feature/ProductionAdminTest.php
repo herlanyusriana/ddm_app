@@ -1765,6 +1765,33 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('R: 1');
     }
 
+    public function test_manual_input_time_controls_hourly_bucket_when_entry_is_submitted_late(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
+        $process = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        $operator = Operator::create(['operator_code' => '88', 'name' => 'Operator Late', 'target_prod' => 5]);
+
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05',
+            'shift' => '1',
+            'input_time' => '09:15',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $process->id,
+            'operator_id' => $operator->id,
+            'good_qty' => 3,
+            'ng_qty' => 0,
+            'created_at' => '2026-07-05 08:55:00',
+        ]);
+
+        $page = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
+
+        $page->assertOk();
+        $page->assertSee('09:15 · AMZ / A-06T = 3');
+        $page->assertSeeInOrder(['Jam 1', 'Jam 2', '09:15 · AMZ / A-06T = 3']);
+    }
+
     public function test_binding_reject_stock_card_tracks_balance_and_supports_edit_delete_export(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);

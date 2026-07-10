@@ -18,6 +18,11 @@
             @if(strcasecmp($entry->process?->name ?? '', 'Binding') === 0)
                 <div class="field"><label>Operator</label><select name="operator_id" required>@foreach($operators as $operator)<option value="{{ $operator->id }}" @selected(old('operator_id', $entry->operator_id) == $operator->id)>{{ $operator->operator_code }} · {{ $operator->name }}</option>@endforeach</select></div>
             @endif
+            <div class="field">
+                <label>Jam Input</label>
+                <input type="time" name="input_time" value="{{ old('input_time', $entry->input_time ? substr((string) $entry->input_time, 0, 5) : $entry->created_at->setTimezone('Asia/Jakarta')->format('H:i')) }}" required>
+                <div class="field-hint">Dipakai untuk menentukan Jam 1 sampai Jam 7 di report.</div>
+            </div>
             <div class="form-row-2">
                 <div class="field"><label>Good</label><input type="number" min="0" name="good_qty" value="{{ old('good_qty', $entry->good_qty) }}" required></div>
                 <div class="field"><label>Reject</label><input type="number" min="0" name="reject_qty" value="{{ old('reject_qty', $entry->ng_qty) }}" required></div>
