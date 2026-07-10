@@ -932,6 +932,10 @@ class ProductionAdminController extends Controller
         $spk = Spk::find($request->input('spk_id'));
         $isCustomEntry = ! $spk;
 
+        if ($requiresOperator && is_array($request->input('entries'))) {
+            return $this->storeMultipleProductionEntries($request, $automaticWindow, $process, $spk, $isCustomEntry, $requiresPart);
+        }
+
         $request->merge([
             'repairable_qty' => $request->input('reject_qty', $request->input('repairable_qty', $request->input('ng_qty', 0))),
             'scrap_qty' => 0,
@@ -1029,6 +1033,133 @@ class ProductionAdminController extends Controller
 
         return redirect($redirectPath.'?'.http_build_query($redirectQuery))
             ->with('status', 'Input produksi tersimpan.');
+    }
+
+    private function storeMultipleProductionEntries(
+        Request $request,
+        bool $automaticWindow,
+        Process $process,
+        ?Spk $spk,
+        bool $isCustomEntry,
+        bool $requiresPart,
+    ): RedirectResponse {
+        $validated = $request->validate([
+            'spk_id' => ['nullable', 'exists:spks,id'],
+            'production_date' => ['required', 'date'],
+            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
+            'part_id' => [
+                ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
+                'exists:parts,id',
+            ],
+            'size_variant_id' => [
+                $isCustomEntry || ($requiresPart && ! $spk?->size_variant_id) ? 'required' : 'nullable',
+                'exists:size_variants,id',
+            ],
+            'process_id' => [
+                'required',
+                Rule::exists('processes', 'id')->where('is_input_process', true),
+            ],
+            'entries' => ['required', 'array', 'min:1'],
+            'entries.*.operator_id' => ['required', 'exists:operators,id', 'distinct'],
+            'entries.*.good_qty' => ['required', 'integer', 'min:0'],
+            'entries.*.reject_qty' => ['required', 'integer', 'min:0'],
+            'entries.*.reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
+            'notes' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $entries = collect($validated['entries'])
+            ->map(fn (array $entry) => [
+                'operator_id' => (int) $entry['operator_id'],
+                'good_qty' => (int) $entry['good_qty'],
+                'ng_qty' => (int) $entry['reject_qty'],
+                'reject_reason' => ((int) $entry['reject_qty'] > 0) ? ($entry['reject_reason'] ?? null) : null,
+            ])
+            ->filter(fn (array $entry) => ($entry['good_qty'] + $entry['ng_qty']) > 0)
+            ->values();
+
+        if ($entries->isEmpty()) {
+            return back()
+                ->withErrors(['entries' => 'Minimal satu baris operator harus punya Good atau Reject lebih dari 0.'])
+                ->withInput();
+        }
+
+        if ($entries->contains(fn (array $entry) => $entry['ng_qty'] > 0 && ! $entry['reject_reason'])) {
+            return back()
+                ->withErrors(['entries' => 'Alasan reject wajib dipilih pada baris yang Reject lebih dari 0.'])
+                ->withInput();
+        }
+
+        $totalInputQty = (int) $entries->sum(fn (array $entry) => $entry['good_qty'] + $entry['ng_qty']);
+        if ($spk) {
+            $overflowMessage = $this->spkProcessCapacityError($spk, $process, $totalInputQty);
+            if ($overflowMessage) {
+                return back()
+                    ->withErrors(['entries' => $overflowMessage])
+                    ->withInput();
+            }
+        }
+
+        if ($spk) {
+            if ($requiresPart && $spk->part_id && isset($validated['part_id']) && (int) $validated['part_id'] !== (int) $spk->part_id) {
+                return back()
+                    ->withErrors(['part_id' => 'Part harus sesuai dengan part di SPK.'])
+                    ->withInput();
+            }
+
+            if ($requiresPart && isset($validated['part_id']) && ! $this->partMatchesBuyer((int) $validated['part_id'], (int) $spk->buyer_id)) {
+                return back()
+                    ->withErrors(['part_id' => 'Part tidak sesuai dengan buyer SPK.'])
+                    ->withInput();
+            }
+
+            $validated['buyer_id'] = $spk->buyer_id;
+            $validated['part_id'] = $requiresPart ? ($validated['part_id'] ?? $spk->part_id) : null;
+            $validated['size_variant_id'] = $requiresPart ? ($validated['size_variant_id'] ?? $spk->size_variant_id) : null;
+        } elseif ($isCustomEntry) {
+            $validated['part_id'] = null;
+        }
+
+        $base = [
+            'spk_id' => $validated['spk_id'] ?? null,
+            'production_date' => $validated['production_date'],
+            'shift' => $validated['shift'],
+            'buyer_id' => $validated['buyer_id'] ?? null,
+            'part_id' => $requiresPart ? ($validated['part_id'] ?? null) : null,
+            'size_variant_id' => $validated['size_variant_id'] ?? null,
+            'process_id' => $process->id,
+            'repairable_qty' => 0,
+            'scrap_qty' => 0,
+            'notes' => $validated['notes'] ?? null,
+        ];
+
+        DB::transaction(function () use ($entries, $base, $spk) {
+            foreach ($entries as $entry) {
+                ProductionEntry::create([
+                    ...$base,
+                    'operator_id' => $entry['operator_id'],
+                    'good_qty' => $entry['good_qty'],
+                    'repairable_qty' => $entry['ng_qty'],
+                    'ng_qty' => $entry['ng_qty'],
+                    'reject_reason' => $entry['reject_reason'],
+                ]);
+            }
+
+            if ($spk) {
+                $this->syncSpkStatus($spk);
+            }
+        });
+
+        $redirectPath = $requiresPart ? '/input-hasil' : '/input-proses';
+        $redirectQuery = ['process_id' => $validated['process_id']];
+
+        if (! $automaticWindow) {
+            $redirectQuery['production_date'] = $validated['production_date'];
+            $redirectQuery['shift'] = $validated['shift'];
+        }
+
+        return redirect($redirectPath.'?'.http_build_query($redirectQuery))
+            ->with('status', $entries->count().' input produksi tersimpan.');
     }
 
     private function storeProductionTrouble(Request $request, bool $automaticWindow): RedirectResponse

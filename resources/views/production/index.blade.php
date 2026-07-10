@@ -104,6 +104,50 @@
         min-width: 0;
     }
 
+    .multi-entry-panel {
+        border: 1.5px solid var(--line);
+        border-radius: var(--radius-sm);
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .multi-entry-row {
+        align-items: end;
+        border-bottom: 1px solid var(--line);
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(180px, 1fr) 92px 92px minmax(130px, 160px) auto;
+        padding-bottom: 10px;
+    }
+
+    .multi-entry-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .multi-entry-row label {
+        color: var(--muted);
+        display: block;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+    }
+
+    .multi-entry-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-mini {
+        border-radius: 10px;
+        font-size: 12px;
+        min-height: 38px;
+        padding: 8px 10px;
+    }
+
     @media (max-width: 760px) {
         .qty-grid-2 {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -115,6 +159,16 @@
 
         .trouble-history-panel {
             grid-column: auto;
+        }
+
+        .multi-entry-row {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .multi-entry-row .operator-cell,
+        .multi-entry-row .reason-cell,
+        .multi-entry-row .remove-cell {
+            grid-column: 1 / -1;
         }
     }
 </style>
@@ -238,30 +292,6 @@
                         <label>Proses aktif</label>
                         <div class="readonly-pill">{{ $selectedProcess->name }}</div>
                     </div>
-                    @if(strcasecmp($selectedProcess->name, 'Binding') === 0)
-                        <div class="field" data-binding-operator-field>
-                            <label>Operator Binding</label>
-                            <input
-                                name="operator_search"
-                                list="operator-suggestions"
-                                value="{{ old('operator_search') }}"
-                                placeholder="Ketik nomor atau nama operator..."
-                                autocomplete="off"
-                                data-operator-search
-                                required
-                            >
-                            <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id>
-                            <datalist id="operator-suggestions">
-                                @foreach($operators as $operator)
-                                    <option
-                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
-                                        data-operator-id="{{ $operator->id }}"
-                                    ></option>
-                                @endforeach
-                            </datalist>
-                            <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
-                        </div>
-                    @endif
                 @else
                     <div>
                         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Pilih Proses</div>
@@ -277,29 +307,128 @@
                 @endif
 
                 <div data-production-mode-fields>
-                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
-                    <div class="qty-grid qty-grid-2">
-                        <div class="qty-box good">
-                            <label>✅ Good</label>
-                            <input type="number" min="0" name="good_qty" value="0">
+                    @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
+                        <div class="field" data-binding-operator-field>
+                            <label>Operator Binding</label>
+                            <div class="field-hint">Bisa isi beberapa operator dalam sekali simpan.</div>
                         </div>
-                        <div class="qty-box rework">
-                            <label>🔧 Reject</label>
-                            <input type="number" min="0" name="reject_qty" value="0">
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
+                        <div class="multi-entry-panel" data-multi-entry-panel>
+                            <div data-multi-entry-list>
+                                <div class="multi-entry-row" data-multi-entry-row>
+                                    <div class="operator-cell">
+                                        <label>Operator</label>
+                                        <input
+                                            name="entries[0][operator_search]"
+                                            list="operator-suggestions"
+                                            placeholder="Ketik nomor atau nama operator..."
+                                            autocomplete="off"
+                                            data-multi-operator-search
+                                            required
+                                        >
+                                        <input type="hidden" name="entries[0][operator_id]" data-multi-operator-id>
+                                    </div>
+                                    <div>
+                                        <label>Good</label>
+                                        <input type="number" min="0" name="entries[0][good_qty]" value="0" data-multi-good>
+                                    </div>
+                                    <div>
+                                        <label>Reject</label>
+                                        <input type="number" min="0" name="entries[0][reject_qty]" value="0" data-multi-reject>
+                                    </div>
+                                    <div class="reason-cell" data-multi-reject-reason-field style="display:none">
+                                        <label>Alasan Reject</label>
+                                        <select name="entries[0][reject_reason]" data-multi-reject-reason-select disabled>
+                                            <option value="">— Alasan —</option>
+                                            @foreach($rejectReasons as $reason)
+                                                <option value="{{ $reason }}">{{ $reason }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="remove-cell">
+                                        <button type="button" class="btn btn-secondary btn-mini" data-remove-multi-entry style="display:none">Hapus</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="multi-entry-actions">
+                                <button type="button" class="btn btn-secondary btn-mini" data-add-multi-entry>+ Tambah Operator</button>
+                                <div class="field-hint" data-multi-entry-summary>Total input: 0 pcs dari 1 baris.</div>
+                            </div>
+                            <datalist id="operator-suggestions">
+                                @foreach($operators as $operator)
+                                    <option
+                                        value="{{ $operator->operator_code }} · {{ $operator->name }}"
+                                        data-operator-id="{{ $operator->id }}"
+                                    ></option>
+                                @endforeach
+                            </datalist>
                         </div>
-                    </div>
-                    <div class="field" data-reject-reason-field style="display:none;margin-top:12px">
-                        <label>Alasan Reject</label>
-                        <select name="reject_reason" data-reject-reason-select disabled>
-                            <option value="">— Pilih alasan reject —</option>
-                            @foreach($rejectReasons as $reason)
-                                <option value="{{ $reason }}" @selected(old('reject_reason') === $reason)>{{ $reason }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @else
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:10px">Jumlah Produksi</div>
+                        @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
+                            <div class="field" data-binding-operator-field>
+                                <label>Operator Binding</label>
+                                <input
+                                    name="operator_search"
+                                    list="operator-suggestions"
+                                    value="{{ old('operator_search') }}"
+                                    placeholder="Ketik nomor atau nama operator..."
+                                    autocomplete="off"
+                                    data-operator-search
+                                    required
+                                >
+                                <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id>
+                                <datalist id="operator-suggestions">
+                                    @foreach($operators as $operator)
+                                        <option
+                                            value="{{ $operator->operator_code }} · {{ $operator->name }}"
+                                            data-operator-id="{{ $operator->id }}"
+                                        ></option>
+                                    @endforeach
+                                </datalist>
+                                <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
+                            </div>
+                        @endif
+                        <div class="qty-grid qty-grid-2">
+                            <div class="qty-box good">
+                                <label>✅ Good</label>
+                                <input type="number" min="0" name="good_qty" value="0">
+                            </div>
+                            <div class="qty-box rework">
+                                <label>🔧 Reject</label>
+                                <input type="number" min="0" name="reject_qty" value="0">
+                            </div>
+                        </div>
+                        <div class="field" data-reject-reason-field style="display:none;margin-top:12px">
+                            <label>Alasan Reject</label>
+                            <select name="reject_reason" data-reject-reason-select disabled>
+                                <option value="">— Pilih alasan reject —</option>
+                                @foreach($rejectReasons as $reason)
+                                    <option value="{{ $reason }}" @selected(old('reject_reason') === $reason)>{{ $reason }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="form-grid" data-trouble-mode-fields style="display:none">
+                    @if($pageType === 'proses' && strcasecmp($selectedProcess->name, 'Binding') === 0)
+                        <div class="field" data-binding-operator-field>
+                            <label>Operator Binding</label>
+                            <input
+                                name="operator_search"
+                                list="operator-suggestions"
+                                value="{{ old('operator_search') }}"
+                                placeholder="Ketik nomor atau nama operator..."
+                                autocomplete="off"
+                                data-operator-search
+                                disabled
+                                required
+                            >
+                            <input type="hidden" name="operator_id" value="{{ old('operator_id') }}" data-operator-id disabled>
+                            <div class="field-hint">Ketik nomor atau nama, lalu pilih dari suggestion.</div>
+                        </div>
+                    @endif
                     <div class="field">
                         <label>Jenis Trouble</label>
                         <select name="trouble_type" disabled required>
@@ -512,6 +641,111 @@
 
     document.querySelector('input[name="reject_qty"]')?.addEventListener('input', syncRejectReason);
     syncRejectReason();
+
+    const multiEntryList = document.querySelector('[data-multi-entry-list]');
+    const addMultiEntryButton = document.querySelector('[data-add-multi-entry]');
+    const multiEntrySummary = document.querySelector('[data-multi-entry-summary]');
+    const multiOperatorOptions = Array.from(document.querySelectorAll('#operator-suggestions option'));
+
+    function reindexMultiRows() {
+        multiEntryList?.querySelectorAll('[data-multi-entry-row]').forEach((row, index) => {
+            row.querySelector('[data-multi-operator-search]').name = `entries[${index}][operator_search]`;
+            row.querySelector('[data-multi-operator-id]').name = `entries[${index}][operator_id]`;
+            row.querySelector('[data-multi-good]').name = `entries[${index}][good_qty]`;
+            row.querySelector('[data-multi-reject]').name = `entries[${index}][reject_qty]`;
+            row.querySelector('[data-multi-reject-reason-select]').name = `entries[${index}][reject_reason]`;
+            row.querySelector('[data-remove-multi-entry]').style.display = index === 0 && multiEntryList.children.length === 1 ? 'none' : '';
+        });
+    }
+
+    function syncMultiOperator(row) {
+        const search = row.querySelector('[data-multi-operator-search]');
+        const idInput = row.querySelector('[data-multi-operator-id]');
+        const selected = multiOperatorOptions.find((option) => option.value === search.value);
+        idInput.value = selected?.dataset.operatorId || '';
+        search.setCustomValidity(selected ? '' : 'Pilih operator dari suggestion.');
+    }
+
+    function syncMultiRejectReason(row) {
+        const rejectInput = row.querySelector('[data-multi-reject]');
+        const reasonField = row.querySelector('[data-multi-reject-reason-field]');
+        const reasonSelect = row.querySelector('[data-multi-reject-reason-select]');
+        const needsReason = Number(rejectInput?.value || 0) > 0;
+
+        reasonField.style.display = needsReason ? '' : 'none';
+        reasonSelect.disabled = !needsReason;
+        reasonSelect.required = needsReason;
+
+        if (!needsReason) {
+            reasonSelect.value = '';
+        }
+    }
+
+    function syncMultiSummary() {
+        if (!multiEntryList || !multiEntrySummary) {
+            return;
+        }
+
+        const rows = Array.from(multiEntryList.querySelectorAll('[data-multi-entry-row]'));
+        const total = rows.reduce((sum, row) => {
+            return sum
+                + Number(row.querySelector('[data-multi-good]')?.value || 0)
+                + Number(row.querySelector('[data-multi-reject]')?.value || 0);
+        }, 0);
+        const filledRows = rows.filter((row) =>
+            Number(row.querySelector('[data-multi-good]')?.value || 0)
+            + Number(row.querySelector('[data-multi-reject]')?.value || 0) > 0
+        ).length;
+
+        multiEntrySummary.textContent = `Total input: ${total} pcs dari ${filledRows || rows.length} baris.`;
+    }
+
+    function bindMultiRow(row) {
+        row.querySelector('[data-multi-operator-search]')?.addEventListener('input', () => syncMultiOperator(row));
+        row.querySelector('[data-multi-reject]')?.addEventListener('input', () => {
+            syncMultiRejectReason(row);
+            syncMultiSummary();
+            updateSpkTargetInfo();
+        });
+        row.querySelector('[data-multi-good]')?.addEventListener('input', () => {
+            syncMultiSummary();
+            updateSpkTargetInfo();
+        });
+        row.querySelector('[data-remove-multi-entry]')?.addEventListener('click', () => {
+            row.remove();
+            reindexMultiRows();
+            syncMultiSummary();
+            updateSpkTargetInfo();
+        });
+        syncMultiRejectReason(row);
+    }
+
+    addMultiEntryButton?.addEventListener('click', () => {
+        const firstRow = multiEntryList?.querySelector('[data-multi-entry-row]');
+        if (!firstRow) {
+            return;
+        }
+
+        const row = firstRow.cloneNode(true);
+        row.querySelectorAll('input').forEach((input) => {
+            input.value = input.type === 'number' ? '0' : '';
+            input.setCustomValidity('');
+        });
+        row.querySelectorAll('select').forEach((select) => {
+            select.value = '';
+            select.disabled = true;
+        });
+        row.querySelector('[data-multi-reject-reason-field]').style.display = 'none';
+        multiEntryList.appendChild(row);
+        bindMultiRow(row);
+        reindexMultiRows();
+        syncMultiSummary();
+        updateSpkTargetInfo();
+    });
+
+    multiEntryList?.querySelectorAll('[data-multi-entry-row]').forEach(bindMultiRow);
+    reindexMultiRows();
+    syncMultiSummary();
 </script>
 <script>
     const spkProcessTotals = @json($spkProcessTotals);
@@ -521,8 +755,14 @@
         const processInput = document.querySelector('input[name="process_id"]:checked, input[type="hidden"][name="process_id"]');
         const targetInfo = document.querySelector('[data-spk-target-info]');
         const warning = document.querySelector('[data-spk-warning]');
-        const goodInput = Number(document.querySelector('input[name="good_qty"]').value || 0);
-        const rejectInput = Number(document.querySelector('input[name="reject_qty"]').value || 0);
+        const multiRows = Array.from(document.querySelectorAll('[data-multi-entry-row]'));
+        const multiQty = multiRows.reduce((sum, row) => {
+            return sum
+                + Number(row.querySelector('[data-multi-good]')?.value || 0)
+                + Number(row.querySelector('[data-multi-reject]')?.value || 0);
+        }, 0);
+        const singleGoodInput = Number(document.querySelector('input[name="good_qty"]')?.value || 0);
+        const singleRejectInput = Number(document.querySelector('input[name="reject_qty"]')?.value || 0);
 
         if (!spkSelect || !targetInfo || !warning) {
             return;
@@ -532,7 +772,7 @@
         const targetQty = selected ? Number(selected.dataset.targetQty || 0) : 0;
         const spkId = selected ? selected.value : null;
         const processId = processInput ? processInput.value : null;
-        const entryQty = goodInput + rejectInput;
+        const entryQty = multiRows.length ? multiQty : singleGoodInput + singleRejectInput;
 
         let currentQty = 0;
         if (spkId && processId && spkProcessTotals[spkId] && spkProcessTotals[spkId][processId]) {

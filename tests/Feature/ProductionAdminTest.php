@@ -1294,6 +1294,59 @@ class ProductionAdminTest extends TestCase
         ]);
     }
 
+    public function test_binding_can_save_multiple_operators_in_one_submit(): void
+    {
+        $buyer = Buyer::factory()->create();
+        $size = SizeVariant::factory()->create();
+        $firstOperator = Operator::create(['operator_code' => '27', 'name' => 'Harun', 'target_prod' => 6]);
+        $secondOperator = Operator::create(['operator_code' => '28', 'name' => 'Usmanto', 'target_prod' => 6]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+
+        $page = $this->get('/input-proses?process_id='.$binding->id.'&production_date=2026-07-05&shift=1');
+        $page->assertOk();
+        $page->assertSee('Tambah Operator');
+        $page->assertSee('name="entries[0][operator_id]"', false);
+        $page->assertSee('name="entries[0][good_qty]"', false);
+
+        $response = $this->post('/production-entries', [
+            'production_date' => '2026-07-05',
+            'shift' => '1',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $binding->id,
+            'entries' => [
+                [
+                    'operator_id' => $firstOperator->id,
+                    'good_qty' => 10,
+                    'reject_qty' => 0,
+                ],
+                [
+                    'operator_id' => $secondOperator->id,
+                    'good_qty' => 8,
+                    'reject_qty' => 2,
+                    'reject_reason' => 'Bongkar',
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('status', '2 input produksi tersimpan.');
+
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $binding->id,
+            'operator_id' => $firstOperator->id,
+            'good_qty' => 10,
+            'ng_qty' => 0,
+        ]);
+        $this->assertDatabaseHas('production_entries', [
+            'process_id' => $binding->id,
+            'operator_id' => $secondOperator->id,
+            'good_qty' => 8,
+            'ng_qty' => 2,
+            'reject_reason' => 'Bongkar',
+        ]);
+    }
+
     public function test_binding_hourly_export_uses_operator_target_and_hour_bucket(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);
