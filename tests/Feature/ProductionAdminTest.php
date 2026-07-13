@@ -1803,17 +1803,53 @@ class ProductionAdminTest extends TestCase
         $page = $this->get('/production-history?'.$query);
 
         $page->assertOk();
-        $page->assertSee('name="operator_id"', false);
+        $page->assertSee('name="operator_ids[]"', false);
         $page->assertSee('31 · Ronaldi');
         $page->assertSee('Ronaldi');
         $page->assertSee('1 records');
-        $page->assertSee('operator_id='.$operatorOne->id, false);
+        $page->assertSee('operator_ids%5B0%5D='.$operatorOne->id, false);
 
         $export = $this->get('/reports/production-hourly?'.$query);
         $sheet = $this->xlsxSheetXml($export->getContent());
 
         $this->assertStringContainsString('Ronaldi', $sheet);
         $this->assertStringNotContainsString('Usmanto', $sheet);
+    }
+
+    public function test_binding_history_can_filter_multiple_operators_or_all(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '08F']);
+        $process = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+        $operatorOne = Operator::create(['operator_code' => '34', 'name' => 'Operator A']);
+        $operatorTwo = Operator::create(['operator_code' => '35', 'name' => 'Operator B']);
+        $operatorThree = Operator::create(['operator_code' => '36', 'name' => 'Operator C']);
+
+        foreach ([[$operatorOne, 1], [$operatorTwo, 2], [$operatorThree, 3]] as [$operator, $qty]) {
+            ProductionEntry::factory()->create([
+                'production_date' => '2026-07-13',
+                'shift' => '1',
+                'input_time' => '08:1'.$qty,
+                'buyer_id' => $buyer->id,
+                'size_variant_id' => $size->id,
+                'process_id' => $process->id,
+                'operator_id' => $operator->id,
+                'good_qty' => $qty,
+                'ng_qty' => 0,
+            ]);
+        }
+
+        $filtered = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-13&shift=1&operator_ids[]='.$operatorOne->id.'&operator_ids[]='.$operatorTwo->id);
+        $filtered->assertOk();
+        $filtered->assertSee('2 records');
+        $filtered->assertSee('Operator A');
+        $filtered->assertSee('Operator B');
+        $filtered->assertDontSee('Operator C</td>', false);
+
+        $all = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-13&shift=1');
+        $all->assertOk();
+        $all->assertSee('3 records');
+        $all->assertSee('Operator C');
     }
 
     public function test_manual_input_time_controls_hourly_bucket_when_entry_is_submitted_late(): void

@@ -5,12 +5,12 @@
     @if($exportProcess && $historyView === 'input')
         <a
             class="link-btn link-btn-primary"
-            href="{{ route('reports.production-hourly.print', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'operator_id' => $selectedOperatorId], fn ($value) => $value !== null && $value !== ''), false) }}"
+            href="{{ route('reports.production-hourly.print', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'operator_ids' => $selectedOperatorIds], fn ($value) => $value !== null && $value !== '' && $value !== []), false) }}"
             target="_blank"
         >Print Report Harian</a>
         <a
             class="link-btn link-btn-success"
-            href="{{ route('reports.production-hourly', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth, 'operator_id' => $selectedOperatorId], fn ($value) => $value !== null && $value !== ''), false) }}"
+            href="{{ route('reports.production-hourly', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth, 'operator_ids' => $selectedOperatorIds], fn ($value) => $value !== null && $value !== '' && $value !== []), false) }}"
         >Export History Excel</a>
     @endif
     <a class="link-btn link-btn-secondary" href="{{ $pageType === 'hasil' ? route('input.hasil', ['production_date' => $date, 'shift' => $shift], false) : route('input.proses', array_filter(['process_id' => $selectedProcess?->id, 'production_date' => $date, 'shift' => $shift], fn ($value) => $value !== null && $value !== ''), false) }}">Kembali ke Input</a>
@@ -126,8 +126,8 @@
         'production_date' => $date,
         'production_month' => $productionMonth,
         'shift' => $shift,
-        'operator_id' => $selectedOperatorId,
-    ], fn ($value) => $value !== null && $value !== ''))
+        'operator_ids' => $selectedOperatorIds,
+    ], fn ($value) => $value !== null && $value !== '' && $value !== []))
     <div class="history-tabs" aria-label="Pilihan history produksi">
         <a class="history-tab {{ $historyView === 'input' ? 'active' : '' }}" href="{{ route('production.history', array_merge($baseTabQuery, ['view' => 'input']), false) }}">History Input</a>
         <a class="history-tab {{ $historyView === 'trouble' ? 'active' : '' }}" href="{{ route('production.history', array_merge($baseTabQuery, ['view' => 'trouble']), false) }}">History Trouble</a>
@@ -146,14 +146,14 @@
                 </select>
             @endif
             @if($pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0)
-                <select name="operator_id" style="min-height:36px;font-size:13px">
-                    <option value="">Semua Operator</option>
+                <select name="operator_ids[]" multiple size="3" style="min-height:80px;font-size:13px">
                     @foreach($operators as $operator)
-                        <option value="{{ $operator->id }}" @selected((int) $selectedOperatorId === (int) $operator->id)>
+                        <option value="{{ $operator->id }}" @selected(in_array((int) $operator->id, $selectedOperatorIds, true))>
                             {{ $operator->operator_code }} · {{ $operator->name }}
                         </option>
                     @endforeach
                 </select>
+                <span class="field-hint">Kosong = semua operator. Bisa pilih lebih dari satu.</span>
             @endif
             <select name="history_period" data-history-period style="min-height:36px;font-size:13px">
                 <option value="daily" @selected($historyPeriod === 'daily')>Harian</option>
