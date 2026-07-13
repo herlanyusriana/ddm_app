@@ -321,6 +321,7 @@ class ProductionAdminController extends Controller
                 ->whereDate('result_date', $date)->latest()->get(),
             'editResult' => $editResult,
             'components' => $this->reworkComponentOptions(),
+            'rejectNoteOptions' => $this->reworkRejectNoteOptions(),
         ]);
     }
 
@@ -349,11 +350,27 @@ class ProductionAdminController extends Controller
             'production_entry_id' => ['nullable', 'exists:production_entries,id'],
             'binding_reject_stock_id' => ['nullable', 'exists:binding_reject_stocks,id'],
             'result_date' => ['required', 'date'],
-            'component' => ['required', Rule::in($this->reworkComponentOptions())],
+            'component' => ['nullable', Rule::in($this->reworkComponentOptions())],
+            'components' => ['nullable', 'array', 'min:1'],
+            'components.*' => ['required', Rule::in($this->reworkComponentOptions())],
             'qty' => ['required', 'integer', 'min:1'],
             'operator_id' => ['required', 'exists:operators,id'],
-            'reject_notes' => ['required', 'string', 'max:500'],
+            'reject_notes' => ['required', Rule::in($this->reworkRejectNoteOptions())],
         ]);
+        $selectedComponents = collect($validated['components'] ?? [])
+            ->map(fn ($component) => trim((string) $component))
+            ->filter()
+            ->unique()
+            ->values();
+        if ($selectedComponents->isEmpty() && ! empty($validated['component'])) {
+            $selectedComponents = collect([$validated['component']]);
+        }
+        if ($selectedComponents->isEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['components' => 'Pilih minimal satu bagian.']);
+        }
+        $validated['component'] = $selectedComponents->implode(', ');
+        unset($validated['components']);
+
         $productionEntryId = $validated['production_entry_id'] ?? null;
         $bindingRejectStockId = $validated['binding_reject_stock_id'] ?? null;
 
@@ -391,6 +408,20 @@ class ProductionAdminController extends Controller
             'Spring Bonel',
             'Label',
             'Pembersihan',
+        ];
+    }
+
+    private function reworkRejectNoteOptions(): array
+    {
+        return [
+            'Jahit ulang',
+            'SOM',
+            'Jebol',
+            'Pembersihan',
+            'Bongkar',
+            'Label Salah',
+            'Kotor',
+            'Lain-lain',
         ];
     }
 

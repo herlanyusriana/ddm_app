@@ -15,6 +15,13 @@
     <div class="panel-body">
         <form class="form-grid" method="post" action="{{ $editResult ? '/rework-results/'.$editResult->id : '/rework-results' }}">
             @csrf @if($editResult) @method('PUT') @endif
+            @php
+                $rawSelectedComponents = old('components');
+                if ($rawSelectedComponents === null) {
+                    $rawSelectedComponents = $editResult?->component ? explode(',', $editResult->component) : [];
+                }
+                $selectedComponents = collect((array) $rawSelectedComponents)->map(fn ($component) => trim((string) $component))->filter()->all();
+            @endphp
             <div class="field">
                 <label>Sumber Reject / Style</label>
                 <select data-rework-source-select required>
@@ -39,11 +46,22 @@
             </div>
             <div class="field"><label>Tanggal</label><input type="date" name="result_date" value="{{ old('result_date', $editResult?->result_date?->toDateString() ?? $date) }}" required></div>
             <div class="form-row-2">
-                <div class="field"><label>Bagian</label><select name="component" required>@foreach($components as $component)<option value="{{ $component }}" @selected(old('component', $editResult?->component) === $component)>{{ $component }}</option>@endforeach</select></div>
                 <div class="field"><label>Qty</label><input type="number" min="1" name="qty" value="{{ old('qty', $editResult?->qty ?? 1) }}" required></div>
+                <div class="field"><label>Keterangan Reject</label><select name="reject_notes" required><option value="">— Pilih keterangan —</option>@foreach($rejectNoteOptions as $note)<option value="{{ $note }}" @selected(old('reject_notes', $editResult?->reject_notes) === $note)>{{ $note }}</option>@endforeach</select></div>
+            </div>
+            <div class="field">
+                <label>Bagian</label>
+                <div class="processes">
+                    @foreach($components as $component)
+                        <label class="process-label">
+                            <input type="checkbox" name="components[]" value="{{ $component }}" @checked(in_array($component, $selectedComponents, true))>
+                            {{ $component }}
+                        </label>
+                    @endforeach
+                </div>
+                <div class="field-hint">Bisa pilih lebih dari satu bagian untuk 1 input rework.</div>
             </div>
             <div class="field"><label>Operator</label><input name="operator_search" list="rework-operators" value="{{ $editResult?->operator?->operator_code }} · {{ $editResult?->operator?->name }}" data-rework-operator-search placeholder="Ketik nomor atau nama..." required><input type="hidden" name="operator_id" value="{{ old('operator_id', $editResult?->operator_id) }}" data-rework-operator-id><datalist id="rework-operators">@foreach($operators as $operator)<option value="{{ $operator->operator_code }} · {{ $operator->name }}" data-id="{{ $operator->id }}"></option>@endforeach</datalist></div>
-            <div class="field"><label>Keterangan Reject</label><input name="reject_notes" value="{{ old('reject_notes', $editResult?->reject_notes) }}" placeholder="Jahit ulang / SOM / jebol..." required></div>
             @if($editResult)
                 <button class="btn btn-primary">Simpan Perubahan</button>
                 <a class="btn btn-secondary" href="/rework-results?date={{ $date }}">Batal</a>

@@ -2103,13 +2103,18 @@ class ProductionAdminTest extends TestCase
             ->assertSee('Spring Bonel')
             ->assertSee('Label')
             ->assertSee('Pembersihan')
+            ->assertSee('name="components[]"', false)
+            ->assertSee('Jahit ulang')
+            ->assertSee('SOM')
             ->assertSee('Simpan & Lanjut Print', false)
             ->assertSee('Simpan Saja / Nanti');
         $this->post('/rework-results', [
             'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
-            'component' => 'Bottom', 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
+            'components' => ['Bottom', 'Pembersihan'], 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
         ])->assertRedirect('/rework-results/1/additional-print?date=2026-07-07');
         $resultId = DB::table('rework_results')->value('id');
+        $this->assertDatabaseCount('rework_results', 1);
+        $this->assertDatabaseHas('rework_results', ['id' => $resultId, 'qty' => 2, 'component' => 'Bottom, Pembersihan']);
         $this->get('/rework-results?date=2026-07-07')
             ->assertOk()
             ->assertSee('Form Additional Terakhir')
@@ -2119,13 +2124,14 @@ class ProductionAdminTest extends TestCase
             ->assertSee('Form Additional')
             ->assertSee('PT DAYA DAIJANG MIDAS')
             ->assertSee('Jahit ulang')
+            ->assertSee('Bottom, Pembersihan')
             ->assertSee('AMZ / 6T')
             ->assertSee('window.print()', false);
         $this->get('/rework')->assertSee('3');
         $this->get('/rework-results/'.$resultId.'/edit?date=2026-07-07')->assertOk();
         $this->put('/rework-results/'.$resultId, [
             'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
-            'component' => 'Topper', 'qty' => 4, 'operator_id' => $operator->id, 'reject_notes' => 'SOM',
+            'components' => ['Topper'], 'qty' => 4, 'operator_id' => $operator->id, 'reject_notes' => 'SOM',
         ])->assertRedirect('/rework-results?date=2026-07-07');
         $this->assertDatabaseHas('rework_results', ['id' => $resultId, 'qty' => 4, 'component' => 'Topper']);
         $this->get('/rework-results-export?date=2026-07-07')->assertOk();
@@ -2152,7 +2158,7 @@ class ProductionAdminTest extends TestCase
         $this->post('/rework-results', [
             'production_entry_id' => $entry->id,
             'result_date' => '2026-07-13',
-            'component' => 'Border',
+            'components' => ['Border'],
             'qty' => 1,
             'operator_id' => $operator->id,
             'reject_notes' => 'Jahit ulang',
@@ -2248,7 +2254,7 @@ class ProductionAdminTest extends TestCase
         $this->post('/rework-results', [
             'binding_reject_stock_id' => $stock->id,
             'result_date' => '2026-07-07',
-            'component' => 'Spring Pocket',
+            'components' => ['Spring Pocket'],
             'qty' => 3,
             'operator_id' => $operator->id,
             'reject_notes' => 'Jahit ulang',
@@ -2264,10 +2270,10 @@ class ProductionAdminTest extends TestCase
         $this->post('/rework-results', [
             'binding_reject_stock_id' => $stock->id,
             'result_date' => '2026-07-07',
-            'component' => 'Border',
+            'components' => ['Border'],
             'qty' => 6,
             'operator_id' => $operator->id,
-            'reject_notes' => 'Lebih',
+            'reject_notes' => 'Lain-lain',
         ])->assertSessionHasErrors('qty');
         $export = $this->get('/rework-results-export?date=2026-07-07');
         $export->assertOk();
