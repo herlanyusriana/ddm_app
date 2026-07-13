@@ -39,7 +39,7 @@
             </div>
             <div class="field"><label>Tanggal</label><input type="date" name="result_date" value="{{ old('result_date', $editResult?->result_date?->toDateString() ?? $date) }}" required></div>
             <div class="form-row-2">
-                <div class="field"><label>Bagian</label><select name="component" required>@foreach(['Topper','Border','Bottom'] as $component)<option value="{{ $component }}" @selected(old('component', $editResult?->component) === $component)>{{ $component }}</option>@endforeach</select></div>
+                <div class="field"><label>Bagian</label><select name="component" required>@foreach($components as $component)<option value="{{ $component }}" @selected(old('component', $editResult?->component) === $component)>{{ $component }}</option>@endforeach</select></div>
                 <div class="field"><label>Qty</label><input type="number" min="1" name="qty" value="{{ old('qty', $editResult?->qty ?? 1) }}" required></div>
             </div>
             <div class="field"><label>Operator</label><input name="operator_search" list="rework-operators" value="{{ $editResult?->operator?->operator_code }} · {{ $editResult?->operator?->name }}" data-rework-operator-search placeholder="Ketik nomor atau nama..." required><input type="hidden" name="operator_id" value="{{ old('operator_id', $editResult?->operator_id) }}" data-rework-operator-id><datalist id="rework-operators">@foreach($operators as $operator)<option value="{{ $operator->operator_code }} · {{ $operator->name }}" data-id="{{ $operator->id }}"></option>@endforeach</datalist></div>

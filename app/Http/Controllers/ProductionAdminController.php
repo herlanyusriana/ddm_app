@@ -284,6 +284,7 @@ class ProductionAdminController extends Controller
             'results' => ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'bindingRejectStock.buyer', 'bindingRejectStock.sizeVariant', 'operator'])
                 ->whereDate('result_date', $date)->latest()->get(),
             'editResult' => $editResult,
+            'components' => $this->reworkComponentOptions(),
         ]);
     }
 
@@ -305,7 +306,7 @@ class ProductionAdminController extends Controller
             'production_entry_id' => ['nullable', 'exists:production_entries,id'],
             'binding_reject_stock_id' => ['nullable', 'exists:binding_reject_stocks,id'],
             'result_date' => ['required', 'date'],
-            'component' => ['required', Rule::in(['Topper', 'Border', 'Bottom'])],
+            'component' => ['required', Rule::in($this->reworkComponentOptions())],
             'qty' => ['required', 'integer', 'min:1'],
             'operator_id' => ['required', 'exists:operators,id'],
             'reject_notes' => ['required', 'string', 'max:500'],
@@ -335,6 +336,19 @@ class ProductionAdminController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages(['qty' => "Qty melebihi sisa hutang rework ({$remaining})."]);
         }
         return $validated;
+    }
+
+    private function reworkComponentOptions(): array
+    {
+        return [
+            'Topper',
+            'Border',
+            'Bottom',
+            'Spring Pocket',
+            'Spring Bonel',
+            'Label',
+            'Pembersihan',
+        ];
     }
 
     public function destroyReworkResult(ReworkResult $result): RedirectResponse

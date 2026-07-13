@@ -2011,7 +2011,14 @@ class ProductionAdminTest extends TestCase
             'repairable_qty' => 5, 'ng_qty' => 5, 'production_date' => '2026-07-07',
         ]);
 
-        $this->get('/rework-results?date=2026-07-07')->assertOk()->assertSee('Input Hasil Rework')->assertSee('Sisa 5');
+        $this->get('/rework-results?date=2026-07-07')
+            ->assertOk()
+            ->assertSee('Input Hasil Rework')
+            ->assertSee('Sisa 5')
+            ->assertSee('Spring Pocket')
+            ->assertSee('Spring Bonel')
+            ->assertSee('Label')
+            ->assertSee('Pembersihan');
         $this->post('/rework-results', [
             'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
             'component' => 'Bottom', 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
@@ -2065,7 +2072,7 @@ class ProductionAdminTest extends TestCase
         $this->post('/rework-results', [
             'binding_reject_stock_id' => $stock->id,
             'result_date' => '2026-07-07',
-            'component' => 'Border',
+            'component' => 'Spring Pocket',
             'qty' => 3,
             'operator_id' => $operator->id,
             'reject_notes' => 'Jahit ulang',
@@ -2075,6 +2082,7 @@ class ProductionAdminTest extends TestCase
             'production_entry_id' => null,
             'binding_reject_stock_id' => $stock->id,
             'qty' => 3,
+            'component' => 'Spring Pocket',
         ]);
         $this->get('/rework-results?date=2026-07-07')->assertSee('Sisa 5');
         $this->post('/rework-results', [
