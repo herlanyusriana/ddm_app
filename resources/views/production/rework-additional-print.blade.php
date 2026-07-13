@@ -40,22 +40,26 @@
 </head>
 <body>
 @php
-    $buyer = $result->productionEntry?->buyer ?? $result->bindingRejectStock?->buyer;
-    $size = $result->productionEntry?->sizeVariant ?? $result->bindingRejectStock?->sizeVariant;
-    $sourceName = $result->productionEntry?->process?->name ?? 'Binding';
-    $style = trim(($buyer?->code ? $buyer->code.' / ' : '').($size?->code ?? '—'));
-    $spec = trim(($size?->production_code ? $size->production_code.'-' : '').($size?->code ?? '—'));
+    $results = collect($results ?? [$result]);
+    $sheetChunks = $results->chunk(12);
+    $firstResult = $results->first();
+    $singleSource = $results
+        ->map(fn ($item) => $item->productionEntry?->process?->name ?? 'Binding')
+        ->unique()
+        ->count() === 1;
+    $sourceName = $singleSource ? ($firstResult?->productionEntry?->process?->name ?? 'Binding') : 'Multiple';
 @endphp
 <div class="no-print">
     <button onclick="window.print()">🖨 Print Form Additional</button>
     <a href="/rework-results?date={{ $date }}">Kembali</a>
 </div>
+@foreach($sheetChunks as $sheetIndex => $sheetResults)
 <section class="sheet">
     <div class="header">
         <div class="meta">
             <div class="meta-row"><strong>Departemen</strong><span>:</span><span>WH</span></div>
             <div class="meta-row"><strong>Shift</strong><span>:</span><span>—</span></div>
-            <div class="meta-row"><strong>Tanggal</strong><span>:</span><span>{{ $result->result_date?->format('d M Y') }}</span></div>
+            <div class="meta-row"><strong>Tanggal</strong><span>:</span><span>{{ $firstResult?->result_date?->format('d M Y') }}</span></div>
         </div>
         <div class="title">Form Additional</div>
         <div class="company">
@@ -83,18 +87,26 @@
         </tr>
         </thead>
         <tbody>
-        <tr>
-            <td class="no">1</td>
-            <td>{{ $result->reject_notes }}</td>
-            <td>{{ $style }}</td>
-            <td>{{ $result->component }}</td>
-            <td>{{ $spec }}</td>
-            <td class="qty">{{ $result->qty }}</td>
-            <td class="unit">Pcs</td>
-        </tr>
-        @for($i = 2; $i <= 12; $i++)
+        @foreach($sheetResults as $rowIndex => $result)
+            @php
+                $buyer = $result->productionEntry?->buyer ?? $result->bindingRejectStock?->buyer;
+                $size = $result->productionEntry?->sizeVariant ?? $result->bindingRejectStock?->sizeVariant;
+                $style = trim(($buyer?->code ? $buyer->code.' / ' : '').($size?->code ?? '—'));
+                $spec = trim(($size?->production_code ? $size->production_code.'-' : '').($size?->code ?? '—'));
+            @endphp
             <tr>
-                <td class="no">{{ $i }}</td>
+                <td class="no">{{ $rowIndex + 1 + ($sheetIndex * 12) }}</td>
+                <td>{{ $result->reject_notes }}</td>
+                <td>{{ $style }}</td>
+                <td>{{ $result->component }}</td>
+                <td>{{ $spec }}</td>
+                <td class="qty">{{ $result->qty }}</td>
+                <td class="unit">Pcs</td>
+            </tr>
+        @endforeach
+        @for($i = $sheetResults->count() + 1; $i <= 12; $i++)
+            <tr>
+                <td class="no">{{ $i + ($sheetIndex * 12) }}</td>
                 <td></td><td></td><td></td><td></td><td class="qty"></td><td class="unit"></td>
             </tr>
         @endfor
@@ -113,6 +125,7 @@
         <div></div>
     </div>
 </section>
+@endforeach
 <script>
     window.addEventListener('load', () => window.print());
 </script>

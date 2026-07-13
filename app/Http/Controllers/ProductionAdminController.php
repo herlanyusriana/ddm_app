@@ -386,8 +386,29 @@ class ProductionAdminController extends Controller
         $result->load(['productionEntry.buyer', 'productionEntry.sizeVariant', 'productionEntry.process', 'bindingRejectStock.buyer', 'bindingRejectStock.sizeVariant', 'operator']);
 
         return view('production.rework-additional-print', [
-            'result' => $result,
+            'results' => collect([$result]),
             'date' => (string) $request->query('date', $result->result_date?->toDateString() ?? now('Asia/Jakarta')->toDateString()),
+        ]);
+    }
+
+    public function printReworkAdditionalBatch(Request $request): View
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:rework_results,id'],
+            'date' => ['nullable', 'date'],
+        ]);
+
+        $ids = collect($validated['ids'])->map(fn ($id) => (int) $id)->unique()->values();
+        $results = ReworkResult::with(['productionEntry.buyer', 'productionEntry.sizeVariant', 'productionEntry.process', 'bindingRejectStock.buyer', 'bindingRejectStock.sizeVariant', 'operator'])
+            ->whereIn('id', $ids)
+            ->get()
+            ->sortBy(fn (ReworkResult $result) => $ids->search($result->id))
+            ->values();
+
+        return view('production.rework-additional-print', [
+            'results' => $results,
+            'date' => (string) ($validated['date'] ?? now('Asia/Jakarta')->toDateString()),
         ]);
     }
 

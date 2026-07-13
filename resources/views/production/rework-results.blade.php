@@ -58,10 +58,21 @@
     </div>
 </section>
 <section class="panel">
-    <div class="panel-header"><h2>Hasil Rework</h2><span class="badge badge-neutral">{{ $results->count() }} records</span></div>
-    <div class="table-wrap"><table><thead><tr><th>Style</th><th>Bagian</th><th>Qty</th><th>Operator</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
-    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn btn-primary btn-sm" href="/rework-results/{{ $result->id }}/additional-print?date={{ $date }}" target="_blank">Lanjut Form Additional</a><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
-    @empty<tr><td colspan="6"><div class="empty-state"><p>Belum ada hasil rework.</p></div></td></tr>@endforelse
+    <form id="bulk-additional-form" method="get" action="/rework-results-additional-print" target="_blank">
+        <input type="hidden" name="date" value="{{ $date }}">
+    </form>
+    <div class="panel-header">
+        <h2>Hasil Rework</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="badge badge-neutral">{{ $results->count() }} records</span>
+            @if($results->isNotEmpty())
+                <button class="btn btn-primary btn-sm" type="submit" form="bulk-additional-form">Print Selected</button>
+            @endif
+        </div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th><input type="checkbox" data-bulk-check-all aria-label="Pilih semua"></th><th>Style</th><th>Bagian</th><th>Qty</th><th>Operator</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
+    @forelse($results as $result)<tr><td><input type="checkbox" name="ids[]" value="{{ $result->id }}" form="bulk-additional-form" data-bulk-check></td><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn btn-primary btn-sm" href="/rework-results/{{ $result->id }}/additional-print?date={{ $date }}" target="_blank">Lanjut Form Additional</a><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
+    @empty<tr><td colspan="7"><div class="empty-state"><p>Belum ada hasil rework.</p></div></td></tr>@endforelse
     </tbody></table></div>
 </section>
 </div>
@@ -77,5 +88,8 @@ function syncReworkSource(){const [type,id]=(reworkSourceSelect?.value||'').spli
 if(reworkSourceSelect&&!reworkSourceSelect.value){if(productionEntrySource.value){reworkSourceSelect.value='production:'+productionEntrySource.value;}else if(bindingStockSource.value){reworkSourceSelect.value='binding:'+bindingStockSource.value;}}
 reworkSourceSelect?.addEventListener('change',syncReworkSource);
 syncReworkSource();
+const bulkCheckAll=document.querySelector('[data-bulk-check-all]');
+const bulkChecks=Array.from(document.querySelectorAll('[data-bulk-check]'));
+bulkCheckAll?.addEventListener('change',()=>bulkChecks.forEach((check)=>check.checked=bulkCheckAll.checked));
 </script>
 @endsection

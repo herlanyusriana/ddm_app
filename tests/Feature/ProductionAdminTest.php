@@ -2080,7 +2080,64 @@ class ProductionAdminTest extends TestCase
             ->assertOk()
             ->assertSee('WF / 12Q')
             ->assertSee('Lanjut Form Additional')
+            ->assertSee('Print Selected')
+            ->assertSee('name="ids[]"', false)
             ->assertSee('/rework-results/'.$resultId.'/additional-print?date=2026-07-13', false);
+    }
+
+    public function test_rework_additional_form_can_print_selected_items_in_one_sheet(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $sizeOne = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F']);
+        $sizeTwo = SizeVariant::factory()->create(['production_code' => 'B', 'code' => '12Q']);
+        $process = Process::factory()->create(['name' => 'Binding']);
+        $operator = Operator::create(['operator_code' => '44', 'name' => 'Bulk Op']);
+        $entryOne = ProductionEntry::factory()->create([
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $sizeOne->id,
+            'process_id' => $process->id,
+            'repairable_qty' => 2,
+            'ng_qty' => 2,
+            'production_date' => '2026-07-13',
+        ]);
+        $entryTwo = ProductionEntry::factory()->create([
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $sizeTwo->id,
+            'process_id' => $process->id,
+            'repairable_qty' => 3,
+            'ng_qty' => 3,
+            'production_date' => '2026-07-13',
+        ]);
+
+        $resultOneId = DB::table('rework_results')->insertGetId([
+            'production_entry_id' => $entryOne->id,
+            'result_date' => '2026-07-13',
+            'component' => 'Topper',
+            'qty' => 1,
+            'operator_id' => $operator->id,
+            'reject_notes' => 'Jebol',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $resultTwoId = DB::table('rework_results')->insertGetId([
+            'production_entry_id' => $entryTwo->id,
+            'result_date' => '2026-07-13',
+            'component' => 'Label',
+            'qty' => 2,
+            'operator_id' => $operator->id,
+            'reject_notes' => 'Label salah',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $page = $this->get('/rework-results-additional-print?date=2026-07-13&ids[]='.$resultOneId.'&ids[]='.$resultTwoId);
+
+        $page->assertOk();
+        $page->assertSee('Form Additional');
+        $page->assertSee('Jebol');
+        $page->assertSee('Label salah');
+        $page->assertSee('AMZ / 10F');
+        $page->assertSee('AMZ / 12Q');
     }
 
     public function test_binding_reject_stock_can_be_processed_as_rework_result(): void

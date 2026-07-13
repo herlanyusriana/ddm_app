@@ -17,6 +17,7 @@ Route::delete('/production-entries/{entry}', [ProductionAdminController::class, 
 Route::get('/rework', [ProductionAdminController::class, 'reworkPage'])->name('rework.index');
 Route::get('/rework-results', [ProductionAdminController::class, 'reworkResultsPage'])->name('rework-results.index');
 Route::post('/rework-results', [ProductionAdminController::class, 'storeReworkResult'])->name('rework-results.store');
+Route::get('/rework-results-additional-print', [ProductionAdminController::class, 'printReworkAdditionalBatch'])->name('rework-results.additional-print-batch');
 Route::get('/rework-results/{result}/additional-print', [ProductionAdminController::class, 'printReworkAdditional'])->name('rework-results.additional-print');
 Route::get('/rework-results/{result}/edit', [ProductionAdminController::class, 'editReworkResult'])->name('rework-results.edit');
 Route::put('/rework-results/{result}', [ProductionAdminController::class, 'updateReworkResult'])->name('rework-results.update');
