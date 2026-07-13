@@ -5,12 +5,12 @@
     @if($exportProcess && $historyView === 'input')
         <a
             class="link-btn link-btn-primary"
-            href="{{ route('reports.production-hourly.print', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id], false) }}"
+            href="{{ route('reports.production-hourly.print', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'operator_id' => $selectedOperatorId], fn ($value) => $value !== null && $value !== ''), false) }}"
             target="_blank"
         >Print Report Harian</a>
         <a
             class="link-btn link-btn-success"
-            href="{{ route('reports.production-hourly', ['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth], false) }}"
+            href="{{ route('reports.production-hourly', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth, 'operator_id' => $selectedOperatorId], fn ($value) => $value !== null && $value !== ''), false) }}"
         >Export History Excel</a>
     @endif
     <a class="link-btn link-btn-secondary" href="{{ $pageType === 'hasil' ? route('input.hasil', ['production_date' => $date, 'shift' => $shift], false) : route('input.proses', array_filter(['process_id' => $selectedProcess?->id, 'production_date' => $date, 'shift' => $shift], fn ($value) => $value !== null && $value !== ''), false) }}">Kembali ke Input</a>
@@ -126,6 +126,7 @@
         'production_date' => $date,
         'production_month' => $productionMonth,
         'shift' => $shift,
+        'operator_id' => $selectedOperatorId,
     ], fn ($value) => $value !== null && $value !== ''))
     <div class="history-tabs" aria-label="Pilihan history produksi">
         <a class="history-tab {{ $historyView === 'input' ? 'active' : '' }}" href="{{ route('production.history', array_merge($baseTabQuery, ['view' => 'input']), false) }}">History Input</a>
@@ -141,6 +142,16 @@
                 <select name="process_id" style="min-height:36px;font-size:13px">
                     @foreach($inputProcesses as $process)
                         <option value="{{ $process->id }}" @selected($selectedProcess->id === $process->id)>{{ $process->name }}</option>
+                    @endforeach
+                </select>
+            @endif
+            @if($pageType === 'proses' && $selectedProcess && strcasecmp($selectedProcess->name, 'Binding') === 0)
+                <select name="operator_id" style="min-height:36px;font-size:13px">
+                    <option value="">Semua Operator</option>
+                    @foreach($operators as $operator)
+                        <option value="{{ $operator->id }}" @selected((int) $selectedOperatorId === (int) $operator->id)>
+                            {{ $operator->operator_code }} · {{ $operator->name }}
+                        </option>
                     @endforeach
                 </select>
             @endif

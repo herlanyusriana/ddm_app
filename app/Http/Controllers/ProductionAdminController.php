@@ -90,11 +90,15 @@ class ProductionAdminController extends Controller
         $productionMonth = preg_match('/^\d{4}-\d{2}$/', (string) $request->query('production_month'))
             ? (string) $request->query('production_month')
             : substr($date, 0, 7);
+        $selectedOperatorId = $request->query('operator_id') && Operator::whereKey($request->query('operator_id'))->exists()
+            ? (int) $request->query('operator_id')
+            : null;
         $hourlyReport = $historyProcess
-            ? $this->productionHourlyReport($date, $shift, $historyProcess, $historyPeriod, $productionMonth)
+            ? $this->productionHourlyReport($date, $shift, $historyProcess, $historyPeriod, $productionMonth, $selectedOperatorId)
             : ['process' => null, 'headers' => [], 'rows' => collect(), 'totals_row' => null, 'record_count' => 0];
         $troubles = ProductionTrouble::with(['spk', 'operator', 'process'])
             ->when($historyProcess, fn ($query) => $query->where('process_id', $historyProcess->id))
+            ->when($selectedOperatorId, fn ($query) => $query->where('operator_id', $selectedOperatorId))
             ->where('shift', $shift)
             ->when(
                 $historyPeriod === 'monthly',
@@ -109,6 +113,7 @@ class ProductionAdminController extends Controller
             ->get();
         $correctionEntries = ProductionEntry::with(['spk', 'operator', 'buyer', 'sizeVariant', 'process'])
             ->when($historyProcess, fn ($query) => $query->where('process_id', $historyProcess->id))
+            ->when($selectedOperatorId, fn ($query) => $query->where('operator_id', $selectedOperatorId))
             ->where('shift', $shift)
             ->when(
                 $historyPeriod === 'monthly',
@@ -143,6 +148,7 @@ class ProductionAdminController extends Controller
             'hourlyReport' => $hourlyReport,
             'historyPeriod' => $historyPeriod,
             'productionMonth' => $productionMonth,
+            'selectedOperatorId' => $selectedOperatorId,
             'troubles' => $troubles,
             'correctionEntries' => $correctionEntries,
             'rejectReasons' => $this->rejectReasonOptions(),
@@ -1404,6 +1410,7 @@ class ProductionAdminController extends Controller
             ],
             'history_period' => ['nullable', Rule::in(['daily', 'monthly'])],
             'production_month' => ['nullable', 'date_format:Y-m'],
+            'operator_id' => ['nullable', 'exists:operators,id'],
         ]);
 
         $process = Process::findOrFail($validated['process_id']);
@@ -1415,6 +1422,7 @@ class ProductionAdminController extends Controller
             $process,
             $historyPeriod,
             $productionMonth,
+            isset($validated['operator_id']) ? (int) $validated['operator_id'] : null,
         );
 
         $periodLabel = $historyPeriod === 'monthly' ? $productionMonth : $validated['production_date'];
@@ -1438,6 +1446,7 @@ class ProductionAdminController extends Controller
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
             ],
+            'operator_id' => ['nullable', 'exists:operators,id'],
         ]);
 
         $process = Process::findOrFail($validated['process_id']);
@@ -1445,12 +1454,16 @@ class ProductionAdminController extends Controller
             $validated['production_date'],
             $validated['shift'],
             $process,
+            'daily',
+            null,
+            isset($validated['operator_id']) ? (int) $validated['operator_id'] : null,
         );
 
         $rejectRows = ProductionEntry::with(['process'])
             ->whereDate('production_date', $validated['production_date'])
             ->where('shift', $validated['shift'])
             ->where('process_id', $process->id)
+            ->when(isset($validated['operator_id']), fn ($query) => $query->where('operator_id', (int) $validated['operator_id']))
             ->where('ng_qty', '>', 0)
             ->get()
             ->groupBy(fn (ProductionEntry $entry) => ($entry->reject_reason ?: 'Reject').'-'.$entry->process_id)
@@ -1716,11 +1729,13 @@ class ProductionAdminController extends Controller
         Process $process,
         string $period = 'daily',
         ?string $month = null,
+        ?int $operatorId = null,
     ): array
     {
         $query = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
             ->where('shift', $shift)
-            ->where('process_id', $process->id);
+            ->where('process_id', $process->id)
+            ->when($operatorId, fn ($query) => $query->where('operator_id', $operatorId));
 
         if ($period === 'monthly') {
             $monthStart = CarbonImmutable::createFromFormat('Y-m', $month ?? substr($date, 0, 7))->startOfMonth();
