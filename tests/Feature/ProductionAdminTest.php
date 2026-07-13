@@ -2018,7 +2018,9 @@ class ProductionAdminTest extends TestCase
             ->assertSee('Spring Pocket')
             ->assertSee('Spring Bonel')
             ->assertSee('Label')
-            ->assertSee('Pembersihan');
+            ->assertSee('Pembersihan')
+            ->assertSee('Simpan & Lanjut Print', false)
+            ->assertSee('Simpan Saja / Nanti');
         $this->post('/rework-results', [
             'production_entry_id' => $entry->id, 'result_date' => '2026-07-07',
             'component' => 'Bottom', 'qty' => 2, 'operator_id' => $operator->id, 'reject_notes' => 'Jahit ulang',
@@ -2027,7 +2029,7 @@ class ProductionAdminTest extends TestCase
         $this->get('/rework-results?date=2026-07-07')
             ->assertOk()
             ->assertSee('Form Additional Terakhir')
-            ->assertSee('Form Additional');
+            ->assertSee('Lanjut Form Additional');
         $this->get('/rework-results/'.$resultId.'/additional-print?date=2026-07-07')
             ->assertOk()
             ->assertSee('Form Additional')
@@ -2046,6 +2048,39 @@ class ProductionAdminTest extends TestCase
         $this->delete('/rework-results/'.$resultId)->assertRedirect();
         $this->assertDatabaseMissing('rework_results', ['id' => $resultId]);
         $this->get('/rework')->assertSee('5');
+    }
+
+    public function test_rework_result_can_be_saved_for_later_additional_form(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'WF']);
+        $size = SizeVariant::factory()->create(['code' => '12Q']);
+        $process = Process::factory()->create(['name' => 'Binding']);
+        $operator = Operator::create(['operator_code' => '31', 'name' => 'Ronaldi']);
+        $entry = ProductionEntry::factory()->create([
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $process->id,
+            'repairable_qty' => 2,
+            'ng_qty' => 2,
+            'production_date' => '2026-07-13',
+        ]);
+
+        $this->post('/rework-results', [
+            'production_entry_id' => $entry->id,
+            'result_date' => '2026-07-13',
+            'component' => 'Border',
+            'qty' => 1,
+            'operator_id' => $operator->id,
+            'reject_notes' => 'Jahit ulang',
+            'after_save' => 'later',
+        ])->assertRedirect('/rework-results?date=2026-07-13');
+
+        $resultId = DB::table('rework_results')->value('id');
+        $this->get('/rework-results?date=2026-07-13')
+            ->assertOk()
+            ->assertSee('WF / 12Q')
+            ->assertSee('Lanjut Form Additional')
+            ->assertSee('/rework-results/'.$resultId.'/additional-print?date=2026-07-13', false);
     }
 
     public function test_binding_reject_stock_can_be_processed_as_rework_result(): void

@@ -44,15 +44,23 @@
             </div>
             <div class="field"><label>Operator</label><input name="operator_search" list="rework-operators" value="{{ $editResult?->operator?->operator_code }} · {{ $editResult?->operator?->name }}" data-rework-operator-search placeholder="Ketik nomor atau nama..." required><input type="hidden" name="operator_id" value="{{ old('operator_id', $editResult?->operator_id) }}" data-rework-operator-id><datalist id="rework-operators">@foreach($operators as $operator)<option value="{{ $operator->operator_code }} · {{ $operator->name }}" data-id="{{ $operator->id }}"></option>@endforeach</datalist></div>
             <div class="field"><label>Keterangan Reject</label><input name="reject_notes" value="{{ old('reject_notes', $editResult?->reject_notes) }}" placeholder="Jahit ulang / SOM / jebol..." required></div>
-            <button class="btn btn-primary">{{ $editResult ? 'Simpan Perubahan' : 'Simpan Hasil Rework' }}</button>
-            @if($editResult)<a class="btn btn-secondary" href="/rework-results?date={{ $date }}">Batal</a>@endif
+            @if($editResult)
+                <button class="btn btn-primary">Simpan Perubahan</button>
+                <a class="btn btn-secondary" href="/rework-results?date={{ $date }}">Batal</a>
+            @else
+                <div class="form-row-2">
+                    <button class="btn btn-primary" type="submit" name="after_save" value="print">Simpan & Lanjut Print</button>
+                    <button class="btn btn-secondary" type="submit" name="after_save" value="later">Simpan Saja / Nanti</button>
+                </div>
+                <div class="field-hint">Kalau pilih Nanti, klik tombol Form Additional per item di tabel Hasil Rework saat mau dilanjutkan.</div>
+            @endif
         </form>
     </div>
 </section>
 <section class="panel">
     <div class="panel-header"><h2>Hasil Rework</h2><span class="badge badge-neutral">{{ $results->count() }} records</span></div>
     <div class="table-wrap"><table><thead><tr><th>Style</th><th>Bagian</th><th>Qty</th><th>Operator</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
-    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px"><a class="btn btn-primary btn-sm" href="/rework-results/{{ $result->id }}/additional-print?date={{ $date }}" target="_blank">Form Additional</a><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
+    @forelse($results as $result)<tr><td>{{ $result->productionEntry?->buyer?->code ?? $result->bindingRejectStock?->buyer?->code }} / {{ $result->productionEntry?->sizeVariant?->code ?? $result->bindingRejectStock?->sizeVariant?->code }} <span class="badge badge-neutral">{{ $result->productionEntry ? 'Reject Produksi' : 'Reject Binding' }}</span></td><td>{{ $result->component }}</td><td>{{ $result->qty }}</td><td>{{ $result->operator?->operator_code }} · {{ $result->operator?->name }}</td><td>{{ $result->reject_notes }}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn btn-primary btn-sm" href="/rework-results/{{ $result->id }}/additional-print?date={{ $date }}" target="_blank">Lanjut Form Additional</a><a class="btn btn-secondary btn-sm" href="/rework-results/{{ $result->id }}/edit?date={{ $date }}">Edit</a><form method="post" action="/rework-results/{{ $result->id }}" onsubmit="return confirm('Hapus hasil rework?')">@csrf @method('DELETE')<button class="btn btn-danger btn-sm">Hapus</button></form></div></td></tr>
     @empty<tr><td colspan="6"><div class="empty-state"><p>Belum ada hasil rework.</p></div></td></tr>@endforelse
     </tbody></table></div>
 </section>

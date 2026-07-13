@@ -291,7 +291,14 @@ class ProductionAdminController extends Controller
     public function storeReworkResult(Request $request): RedirectResponse
     {
         $result = ReworkResult::create($this->validatedReworkResult($request));
-        return redirect('/rework-results/'.$result->id.'/additional-print?date='.$request->input('result_date'))->with('status', 'Hasil rework tersimpan.');
+
+        if ($request->input('after_save') === 'later') {
+            return redirect('/rework-results?date='.$request->input('result_date'))
+                ->with('status', 'Hasil rework tersimpan. Form Additional bisa dilanjutkan nanti dari tombol per item.');
+        }
+
+        return redirect('/rework-results/'.$result->id.'/additional-print?date='.$request->input('result_date'))
+            ->with('status', 'Hasil rework tersimpan.');
     }
 
     public function updateReworkResult(Request $request, ReworkResult $result): RedirectResponse
