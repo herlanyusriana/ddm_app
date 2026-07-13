@@ -1721,7 +1721,7 @@ class ProductionAdminTest extends TestCase
         $this->assertDatabaseMissing('production_entries', ['id' => $entry->id]);
     }
 
-    public function test_binding_hourly_totals_show_target_sum_and_operator_count(): void
+    public function test_binding_hourly_totals_keep_target_only_in_operator_column(): void
     {
         $buyer = Buyer::factory()->create(['code' => 'AMZ']);
         $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '06T']);
@@ -1759,8 +1759,11 @@ class ProductionAdminTest extends TestCase
         $page = $this->get('/production-history?process_id='.$process->id.'&production_date=2026-07-05&shift=1');
 
         $page->assertOk();
-        $page->assertSee('Target: 5');
-        $page->assertSee('Operator: 2');
+        $page->assertSee('Target Operator');
+        $page->assertSee('3');
+        $page->assertSee('2');
+        $page->assertDontSee('Target: 5');
+        $page->assertDontSee('Operator: 2');
         $page->assertSee('G: 10');
         $page->assertSee('R: 1');
     }

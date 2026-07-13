@@ -1729,12 +1729,6 @@ class ProductionAdminController extends Controller
                 return "TOTAL G: 0 · R: 0";
             }
 
-            $operators = $bucket
-                ->filter(fn (ProductionEntry $entry) => $entry->operator_id)
-                ->unique('operator_id');
-            $operatorCount = $operators->count();
-            $targetTotal = (int) $operators->sum(fn (ProductionEntry $entry) => (int) ($entry->operator?->target_prod ?? 0));
-
             $styles = $bucket
                 ->groupBy(fn (ProductionEntry $entry) => ($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
                 ->map(function ($group): string {
@@ -1750,8 +1744,6 @@ class ProductionAdminController extends Controller
                 ->implode("\n");
 
             return $styles
-                ."\nTarget: ".$targetTotal
-                ."\nOperator: ".$operatorCount
                 ."\nTOTAL G: ".(int) $bucket->sum('good_qty').' · R: '.(int) $bucket->sum('ng_qty');
         }, $this->hourlyEntryBuckets($entries, $date, $shift));
 
