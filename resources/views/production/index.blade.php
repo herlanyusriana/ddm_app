@@ -117,7 +117,7 @@
         border-bottom: 1px solid var(--line);
         display: grid;
         gap: 10px;
-        grid-template-columns: minmax(120px, 1fr) 80px minmax(120px, 1fr) 82px 82px minmax(120px, 150px) auto;
+        grid-template-columns: minmax(110px, 1fr) 78px minmax(110px, 1fr) 80px 78px 78px minmax(120px, 150px) auto;
         padding-bottom: 10px;
     }
 
@@ -382,6 +382,13 @@
                                     </select>
                                 </div>
                                 <div>
+                                    <label>Kategori</label>
+                                    <select name="entries[0][production_category]" data-multi-category>
+                                        <option value="N">Normal</option>
+                                        <option value="R">R</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label>Good</label>
                                     <input type="number" min="0" name="entries[0][good_qty]" value="0" data-multi-good>
                                 </div>
@@ -640,6 +647,7 @@
             row.querySelector('[data-row-buyer]').name = `entries[${index}][buyer_id]`;
             row.querySelector('[data-row-production-code]').name = `entries[${index}][production_code]`;
             row.querySelector('[data-row-size]').name = `entries[${index}][size_variant_id]`;
+            row.querySelector('[data-multi-category]').name = `entries[${index}][production_category]`;
             row.querySelector('[data-multi-good]').name = `entries[${index}][good_qty]`;
             row.querySelector('[data-multi-reject]').name = `entries[${index}][reject_qty]`;
             row.querySelector('[data-multi-reject-reason-select]').name = `entries[${index}][reject_reason]`;

@@ -1327,11 +1327,13 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('name="operator_id"', false);
         $page->assertSee('name="entries[0][buyer_id]"', false);
         $page->assertSee('name="entries[0][size_variant_id]"', false);
+        $page->assertSee('name="entries[0][production_category]"', false);
         $page->assertSee('name="entries[0][good_qty]"', false);
 
         $response = $this->post('/production-entries', [
             'production_date' => '2026-07-05',
             'shift' => '1',
+            'input_time' => '08:10',
             'operator_id' => $operator->id,
             'process_id' => $binding->id,
             'entries' => [
@@ -1349,6 +1351,7 @@ class ProductionAdminTest extends TestCase
                     'good_qty' => 8,
                     'reject_qty' => 2,
                     'reject_reason' => 'Bongkar',
+                    'production_category' => 'R',
                 ],
             ],
         ]);
@@ -1363,6 +1366,7 @@ class ProductionAdminTest extends TestCase
             'size_variant_id' => $firstSize->id,
             'good_qty' => 10,
             'ng_qty' => 0,
+            'production_category' => 'N',
         ]);
         $this->assertDatabaseHas('production_entries', [
             'process_id' => $binding->id,
@@ -1372,7 +1376,12 @@ class ProductionAdminTest extends TestCase
             'good_qty' => 8,
             'ng_qty' => 2,
             'reject_reason' => 'Bongkar',
+            'production_category' => 'R',
         ]);
+
+        $this->get('/production-history?process_id='.$binding->id.'&production_date=2026-07-05&shift=1')
+            ->assertOk()
+            ->assertSee('R /');
     }
 
     public function test_non_binding_process_can_save_multiple_styles_in_one_submit(): void
@@ -2159,7 +2168,7 @@ class ProductionAdminTest extends TestCase
             'production_entry_id' => $entry->id,
             'result_date' => '2026-07-13',
             'components' => ['Border'],
-            'qty' => 1,
+            'qty' => 2,
             'operator_id' => $operator->id,
             'reject_notes' => 'Jahit ulang',
             'after_save' => 'later',
@@ -2169,6 +2178,7 @@ class ProductionAdminTest extends TestCase
         $this->get('/rework-results?date=2026-07-13')
             ->assertOk()
             ->assertSee('WF / 12Q')
+            ->assertSee('Selesai')
             ->assertSee('Lanjut Form Additional')
             ->assertSee('Print Selected')
             ->assertSee('name="ids[]"', false)

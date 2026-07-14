@@ -28,15 +28,17 @@
                     <option value="">— Pilih sumber reject —</option>
                     <optgroup label="Reject Produksi">
                         @foreach($productionSources as $source)
-                            <option value="production:{{ $source->id }}" @selected(old('production_entry_id', $editResult?->production_entry_id) == $source->id)>
-                                {{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · {{ $source->process?->name }} · Sisa {{ $source->remaining_rework }}
+                            @php($isSelectedSource = old('production_entry_id', $editResult?->production_entry_id) == $source->id)
+                            <option value="production:{{ $source->id }}" @selected($isSelectedSource) @disabled($source->remaining_rework <= 0 && ! $isSelectedSource)>
+                                {{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · {{ $source->process?->name }} · {{ $source->remaining_rework > 0 ? 'Sisa '.$source->remaining_rework : 'Selesai' }}
                             </option>
                         @endforeach
                     </optgroup>
                     <optgroup label="Reject Binding">
                         @foreach($bindingSources as $source)
-                            <option value="binding:{{ $source->id }}" @selected(old('binding_reject_stock_id', $editResult?->binding_reject_stock_id) == $source->id)>
-                                {{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · Reject Binding · Sisa {{ $source->remaining_rework }}
+                            @php($isSelectedSource = old('binding_reject_stock_id', $editResult?->binding_reject_stock_id) == $source->id)
+                            <option value="binding:{{ $source->id }}" @selected($isSelectedSource) @disabled($source->remaining_rework <= 0 && ! $isSelectedSource)>
+                                {{ $source->buyer?->code }} / {{ $source->sizeVariant?->code }} · Reject Binding · {{ $source->remaining_rework > 0 ? 'Sisa '.$source->remaining_rework : 'Selesai' }}
                             </option>
                         @endforeach
                     </optgroup>

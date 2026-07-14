@@ -15,6 +15,7 @@ class ProductionEntry extends Model
         'production_date',
         'shift',
         'input_time',
+        'production_category',
         'buyer_id',
         'part_id',
         'size_variant_id',

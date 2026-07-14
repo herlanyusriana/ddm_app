@@ -301,7 +301,7 @@ class ProductionAdminController extends Controller
                     ->sum('qty');
                 $entry->setAttribute('remaining_rework', max(0, (int) $entry->repairable_qty - $used));
                 return $entry;
-            })->filter(fn ($entry) => $entry->remaining_rework > 0 || $editResult?->production_entry_id === $entry->id);
+            });
         $bindingSources = BindingRejectStock::with(['buyer', 'sizeVariant'])
             ->latest('transaction_date')->latest('id')->get()
             ->map(function (BindingRejectStock $stock) use ($editResult) {
@@ -310,7 +310,7 @@ class ProductionAdminController extends Controller
                     ->sum('qty');
                 $stock->setAttribute('remaining_rework', max(0, (int) $stock->qty_in - (int) $stock->qty_out - $used));
                 return $stock;
-            })->filter(fn ($stock) => $stock->remaining_rework > 0 || $editResult?->binding_reject_stock_id === $stock->id);
+            });
 
         return view('production.rework-results', [
             'date' => $date,
@@ -423,6 +423,11 @@ class ProductionAdminController extends Controller
             'Kotor',
             'Lain-lain',
         ];
+    }
+
+    private function productionCategoryOptions(): array
+    {
+        return ['N', 'R'];
     }
 
     public function destroyReworkResult(ReworkResult $result): RedirectResponse
@@ -1110,6 +1115,7 @@ class ProductionAdminController extends Controller
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
             'input_time' => ['nullable', 'date_format:H:i'],
+            'production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
             'part_id' => [
                 ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
@@ -1133,6 +1139,7 @@ class ProductionAdminController extends Controller
 
         $validated['ng_qty'] = $validated['repairable_qty'] + $validated['scrap_qty'];
         $validated['reject_reason'] = $validated['ng_qty'] > 0 ? ($validated['reject_reason'] ?? null) : null;
+        $validated['production_category'] = $validated['production_category'] ?? 'N';
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
             return back()
@@ -1213,6 +1220,7 @@ class ProductionAdminController extends Controller
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
             'input_time' => ['nullable', 'date_format:H:i'],
+            'production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'buyer_id' => ['nullable', 'exists:buyers,id'],
             'part_id' => [
                 ! $isCustomEntry && $requiresPart && ! $spk?->part_id ? 'required' : 'nullable',
@@ -1234,6 +1242,7 @@ class ProductionAdminController extends Controller
             'entries.*.good_qty' => ['required', 'integer', 'min:0'],
             'entries.*.reject_qty' => ['required', 'integer', 'min:0'],
             'entries.*.reject_reason' => ['nullable', Rule::in($this->rejectReasonOptions())],
+            'entries.*.production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'notes' => ['nullable', 'string', 'max:200'],
         ]);
 
@@ -1247,6 +1256,7 @@ class ProductionAdminController extends Controller
                     'good_qty' => (int) $entry['good_qty'],
                     'ng_qty' => (int) $entry['reject_qty'],
                     'reject_reason' => ((int) $entry['reject_qty'] > 0) ? ($entry['reject_reason'] ?? null) : null,
+                    'production_category' => $entry['production_category'] ?? $validated['production_category'] ?? 'N',
                 ];
             })
             ->filter(fn (array $entry) => ($entry['good_qty'] + $entry['ng_qty']) > 0)
@@ -1299,6 +1309,7 @@ class ProductionAdminController extends Controller
             'production_date' => $validated['production_date'],
             'shift' => $validated['shift'],
             'input_time' => $validated['input_time'] ?? null,
+            'production_category' => $validated['production_category'] ?? 'N',
             'part_id' => $requiresPart ? ($validated['part_id'] ?? null) : null,
             'process_id' => $process->id,
             'operator_id' => strcasecmp($process->name, 'Binding') === 0 ? ($validated['operator_id'] ?? null) : null,
@@ -1317,6 +1328,7 @@ class ProductionAdminController extends Controller
                     'repairable_qty' => $entry['ng_qty'],
                     'ng_qty' => $entry['ng_qty'],
                     'reject_reason' => $entry['reject_reason'],
+                    'production_category' => $entry['production_category'],
                 ]);
             }
 
@@ -1622,6 +1634,7 @@ class ProductionAdminController extends Controller
             'production_date' => ['required', 'date'],
             'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
             'input_time' => ['nullable', 'date_format:H:i'],
+            'production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'buyer_id' => ['nullable', 'exists:buyers,id'],
             'part_id' => [$requiresPart && ! $spk?->part_id ? 'required' : 'nullable', 'exists:parts,id'],
             'size_variant_id' => [$requiresPart && ! $spk?->size_variant_id ? 'required' : 'nullable', 'exists:size_variants,id'],
@@ -1638,6 +1651,7 @@ class ProductionAdminController extends Controller
 
         $validated['ng_qty'] = $validated['repairable_qty'] + $validated['scrap_qty'];
         $validated['reject_reason'] = $validated['ng_qty'] > 0 ? ($validated['reject_reason'] ?? null) : null;
+        $validated['production_category'] = $validated['production_category'] ?? 'N';
 
         if (($validated['good_qty'] + $validated['ng_qty']) <= 0) {
             return response()->json(['message' => 'Total produksi (Good + Reject) harus lebih dari 0.'], 422);
@@ -1861,7 +1875,7 @@ class ProductionAdminController extends Controller
                         ? ($size->production_code ? $size->production_code.'-' : '').$size->code
                         : '—';
 
-                    return ($first->buyer?->code ?? '—').' / '.$sizeCode
+                    return $this->entryCategoryPrefix($first).($first->buyer?->code ?? '—').' / '.$sizeCode
                         .' = '.(int) $group->sum('good_qty');
                 })
                 ->implode("\n");
@@ -1974,7 +1988,7 @@ class ProductionAdminController extends Controller
         }
 
         return $entries
-            ->groupBy(fn (ProductionEntry $entry) => $this->entryInputTime($entry).'-'.($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
+            ->groupBy(fn (ProductionEntry $entry) => $this->entryInputTime($entry).'-'.($entry->production_category ?? 'N').'-'.($entry->buyer_id ?? 'none').'-'.($entry->size_variant_id ?? 'none'))
             ->map(function ($group) {
                 $first = $group->first();
 
@@ -1989,7 +2003,7 @@ class ProductionAdminController extends Controller
                     ->unique()
                     ->implode(', ');
 
-                return $this->entryInputTime($first).' · '.($first->buyer?->code ?? '—').' / '.$sizeCode
+                return $this->entryInputTime($first).' · '.$this->entryCategoryPrefix($first).($first->buyer?->code ?? '—').' / '.$sizeCode
                     .' = '.(int) $group->sum('good_qty').', Reject = '.(int) $group->sum('ng_qty')
                     .($rejectReasons ? ' · Alasan: '.$rejectReasons : '');
             })
@@ -2017,6 +2031,11 @@ class ProductionAdminController extends Controller
     private function entryInputTime(ProductionEntry $entry): string
     {
         return $this->entryProductionTimestamp($entry)->format('H:i');
+    }
+
+    private function entryCategoryPrefix(ProductionEntry $entry): string
+    {
+        return strtoupper((string) ($entry->production_category ?? 'N')) === 'R' ? 'R / ' : '';
     }
 
     private function entryProductionTimestamp(ProductionEntry $entry): CarbonImmutable
