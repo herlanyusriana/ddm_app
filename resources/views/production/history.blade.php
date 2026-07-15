@@ -2,6 +2,11 @@
 
 @section('topbar-actions')
     @php($exportProcess = $hourlyReport['process'])
+    @php($inputBackQuery = array_filter([
+        'process_id' => $pageType === 'proses' ? $selectedProcess?->id : null,
+        'production_date' => $date,
+        'shift' => $shift === 'all' ? null : $shift,
+    ], fn ($value) => $value !== null && $value !== ''))
     @if($exportProcess && $historyView === 'input')
         <a
             class="link-btn link-btn-primary"
@@ -13,7 +18,7 @@
             href="{{ route('reports.production-hourly', array_filter(['production_date' => $date, 'shift' => $shift, 'process_id' => $exportProcess->id, 'history_period' => $historyPeriod, 'production_month' => $productionMonth, 'operator_ids' => $selectedOperatorIds], fn ($value) => $value !== null && $value !== '' && $value !== []), false) }}"
         >Export History Excel</a>
     @endif
-    <a class="link-btn link-btn-secondary" href="{{ $pageType === 'hasil' ? route('input.hasil', ['production_date' => $date, 'shift' => $shift], false) : route('input.proses', array_filter(['process_id' => $selectedProcess?->id, 'production_date' => $date, 'shift' => $shift], fn ($value) => $value !== null && $value !== ''), false) }}">Kembali ke Input</a>
+    <a class="link-btn link-btn-secondary" href="{{ $pageType === 'hasil' ? route('input.hasil', $inputBackQuery, false) : route('input.proses', $inputBackQuery, false) }}">Kembali ke Input</a>
 @endsection
 
 @section('content')

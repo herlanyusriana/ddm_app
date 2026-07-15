@@ -97,7 +97,7 @@ class ProductionAdminController extends Controller
         $troubles = ProductionTrouble::with(['spk', 'operator', 'process'])
             ->when($historyProcess, fn ($query) => $query->where('process_id', $historyProcess->id))
             ->when($selectedOperatorIds, fn ($query) => $query->whereIn('operator_id', $selectedOperatorIds))
-            ->where('shift', $shift)
+            ->when($shift !== 'all', fn ($query) => $query->where('shift', $shift))
             ->when(
                 $historyPeriod === 'monthly',
                 function ($query) use ($productionMonth) {
@@ -112,7 +112,7 @@ class ProductionAdminController extends Controller
         $correctionEntries = ProductionEntry::with(['spk', 'operator', 'buyer', 'sizeVariant', 'process'])
             ->when($historyProcess, fn ($query) => $query->where('process_id', $historyProcess->id))
             ->when($selectedOperatorIds, fn ($query) => $query->whereIn('operator_id', $selectedOperatorIds))
-            ->where('shift', $shift)
+            ->when($shift !== 'all', fn ($query) => $query->where('shift', $shift))
             ->when(
                 $historyPeriod === 'monthly',
                 function ($query) use ($productionMonth) {
@@ -130,7 +130,7 @@ class ProductionAdminController extends Controller
             'pageSubtitle' => 'Input Good dan Reject per proses',
             'date' => $date,
             'shift' => $shift,
-            'shiftOptions' => $this->shiftOptions(),
+            'shiftOptions' => $this->shiftFilterOptions(),
             'isManualWindow' => $window['manual'],
             'buyers' => Buyer::where('is_active', true)->orderBy('name')->get(),
             'operators' => Operator::orderBy('operator_code')->get(),
@@ -210,7 +210,7 @@ class ProductionAdminController extends Controller
             'date' => $date,
             'shift' => $shift,
             'isManualWindow' => $window['manual'],
-            'shiftOptions' => $this->shiftOptions(),
+            'shiftOptions' => $this->shiftFilterOptions(),
             'summaries' => $this->processSummaries($date, $shift),
         ]);
     }
@@ -1113,7 +1113,7 @@ class ProductionAdminController extends Controller
         $validated = $request->validate([
             'spk_id' => ['nullable', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
-            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'shift' => ['required', Rule::in(array_keys($this->productionShiftOptions()))],
             'input_time' => ['nullable', 'date_format:H:i'],
             'production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'buyer_id' => [$isCustomEntry ? 'required' : 'nullable', 'exists:buyers,id'],
@@ -1218,7 +1218,7 @@ class ProductionAdminController extends Controller
         $validated = $request->validate([
             'spk_id' => ['nullable', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
-            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'shift' => ['required', Rule::in(array_keys($this->productionShiftOptions()))],
             'input_time' => ['nullable', 'date_format:H:i'],
             'production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'buyer_id' => ['nullable', 'exists:buyers,id'],
@@ -1358,7 +1358,7 @@ class ProductionAdminController extends Controller
             'spk_id' => ['nullable', 'exists:spks,id'],
             'operator_id' => [$requiresOperator ? 'required' : 'nullable', 'exists:operators,id'],
             'production_date' => ['required', 'date'],
-            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'shift' => ['required', Rule::in(array_keys($this->productionShiftOptions()))],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -1476,7 +1476,7 @@ class ProductionAdminController extends Controller
     {
         $validated = $request->validate([
             'production_date' => ['required', 'date'],
-            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'shift' => ['required', Rule::in(array_keys($this->shiftFilterOptions()))],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -1516,7 +1516,7 @@ class ProductionAdminController extends Controller
     {
         $validated = $request->validate([
             'production_date' => ['required', 'date'],
-            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'shift' => ['required', Rule::in(array_keys($this->shiftFilterOptions()))],
             'process_id' => [
                 'required',
                 Rule::exists('processes', 'id')->where('is_input_process', true),
@@ -1539,7 +1539,7 @@ class ProductionAdminController extends Controller
 
         $rejectRows = ProductionEntry::with(['process'])
             ->whereDate('production_date', $validated['production_date'])
-            ->where('shift', $validated['shift'])
+            ->when($validated['shift'] !== 'all', fn ($query) => $query->where('shift', $validated['shift']))
             ->where('process_id', $process->id)
             ->when($operatorFilterIds, fn ($query) => $query->whereIn('operator_id', $operatorFilterIds))
             ->where('ng_qty', '>', 0)
@@ -1632,7 +1632,7 @@ class ProductionAdminController extends Controller
         $validated = $request->validate([
             'spk_id' => ['required', 'exists:spks,id'],
             'production_date' => ['required', 'date'],
-            'shift' => ['required', Rule::in(array_keys($this->shiftOptions()))],
+            'shift' => ['required', Rule::in(array_keys($this->productionShiftOptions()))],
             'input_time' => ['nullable', 'date_format:H:i'],
             'production_category' => ['nullable', Rule::in($this->productionCategoryOptions())],
             'buyer_id' => ['nullable', 'exists:buyers,id'],
@@ -1708,7 +1708,7 @@ class ProductionAdminController extends Controller
             ->map(function (Process $process) use ($date, $shift) {
                 $totals = ProductionEntry::where('process_id', $process->id)
                     ->whereDate('production_date', $date)
-                    ->where('shift', $shift)
+                    ->when($shift !== 'all', fn ($query) => $query->where('shift', $shift))
                     ->selectRaw('COALESCE(SUM(good_qty), 0) as good_qty, COALESCE(SUM(ng_qty), 0) as ng_qty')
                     ->first();
 
@@ -1813,7 +1813,7 @@ class ProductionAdminController extends Controller
     ): array
     {
         $query = ProductionEntry::with(['operator', 'buyer', 'sizeVariant'])
-            ->where('shift', $shift)
+            ->when($shift !== 'all', fn ($query) => $query->where('shift', $shift))
             ->where('process_id', $process->id)
             ->when($operatorIds, fn ($query) => $query->whereIn('operator_id', $operatorIds));
 
@@ -1961,14 +1961,10 @@ class ProductionAdminController extends Controller
     private function hourlyEntryBuckets($entries, string $date, string $shift): array
     {
         $buckets = array_fill(0, 7, null);
-        $start = CarbonImmutable::parse($date, 'Asia/Jakarta');
-        $start = match ($shift) {
-            '1' => $start->setTime(8, 0),
-            '2' => $start->setTime(16, 0),
-            '3' => $start->addDay()->startOfDay(),
-        };
 
         foreach ($entries as $entry) {
+            $bucketShift = $shift === 'all' ? (string) $entry->shift : $shift;
+            $start = $this->shiftStartTimestamp($date, $bucketShift);
             $timestamp = $this->entryProductionTimestamp($entry);
             $hourIndex = intdiv($timestamp->getTimestamp() - $start->getTimestamp(), 3600);
 
@@ -1979,6 +1975,17 @@ class ProductionAdminController extends Controller
         }
 
         return $buckets;
+    }
+
+    private function shiftStartTimestamp(string $date, string $shift): CarbonImmutable
+    {
+        $start = CarbonImmutable::parse($date, 'Asia/Jakarta');
+
+        return match ($shift) {
+            '2' => $start->setTime(16, 0),
+            '3' => $start->addDay()->startOfDay(),
+            default => $start->setTime(8, 0),
+        };
     }
 
     private function formatBuyerSizeBucket($entries): string
@@ -2287,6 +2294,16 @@ class ProductionAdminController extends Controller
         ];
     }
 
+    private function shiftFilterOptions(): array
+    {
+        return ['all' => ['label' => 'All Shift', 'time' => 'Semua shift', 'greeting' => '']] + $this->shiftOptions();
+    }
+
+    private function productionShiftOptions(): array
+    {
+        return $this->shiftOptions();
+    }
+
     private function rejectReasonOptions(): array
     {
         return ['Pembersihan', 'Bongkar', 'Jahitan Jebol', 'Label Salah', 'Lain-lain'];
@@ -2294,7 +2311,7 @@ class ProductionAdminController extends Controller
 
     private function productionWindow(Request $request): array
     {
-        if ($request->filled('production_date') && array_key_exists((string) $request->query('shift'), $this->shiftOptions())) {
+        if ($request->filled('production_date') && array_key_exists((string) $request->query('shift'), $this->shiftFilterOptions())) {
             return [
                 'date' => (string) $request->query('production_date'),
                 'shift' => (string) $request->query('shift'),

@@ -744,6 +744,7 @@ class ProductionAdminTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Dashboard Produksi');
+        $response->assertSee('All Shift');
         $response->assertSee('Total Produksi');
         $response->assertSee('Good');
         $response->assertSee('Reject');
@@ -849,6 +850,22 @@ class ProductionAdminTest extends TestCase
         $response->assertJsonPath('totals.reject_qty', 3);
         $response->assertJsonPath('processes.0.name', 'Sewing');
         $response->assertJsonPath('processes.0.good_rate', 80);
+
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-04',
+            'shift' => '1',
+            'process_id' => $sewing->id,
+            'good_qty' => 5,
+            'ng_qty' => 1,
+        ]);
+
+        $all = $this->getJson('/api/dashboard-summary?production_date=2026-07-04&shift=all');
+
+        $all->assertOk();
+        $all->assertJsonPath('shift', 'all');
+        $all->assertJsonPath('totals.total_qty', 21);
+        $all->assertJsonPath('totals.good_qty', 17);
+        $all->assertJsonPath('totals.reject_qty', 4);
     }
 
     public function test_dashboard_contains_realtime_polling_targets(): void
@@ -1583,6 +1600,50 @@ class ProductionAdminTest extends TestCase
         $page->assertSee('AMZ');
         $page->assertSee('12Q');
         $this->assertStringContainsString($expected, $sheet);
+    }
+
+    public function test_production_history_can_filter_all_shifts(): void
+    {
+        $buyer = Buyer::factory()->create(['code' => 'AMZ']);
+        $size = SizeVariant::factory()->create(['production_code' => 'A', 'code' => '10F', 'point' => 1]);
+        $operator = Operator::create(['operator_code' => '014', 'name' => 'All Shift Op', 'target_prod' => 10]);
+        $binding = Process::factory()->create(['name' => 'Binding', 'is_input_process' => true]);
+
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05',
+            'shift' => '1',
+            'input_time' => '08:10',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $binding->id,
+            'operator_id' => $operator->id,
+            'good_qty' => 4,
+            'ng_qty' => 0,
+        ]);
+        ProductionEntry::factory()->create([
+            'production_date' => '2026-07-05',
+            'shift' => '2',
+            'input_time' => '16:10',
+            'buyer_id' => $buyer->id,
+            'size_variant_id' => $size->id,
+            'process_id' => $binding->id,
+            'operator_id' => $operator->id,
+            'good_qty' => 6,
+            'ng_qty' => 1,
+            'reject_reason' => 'Bongkar',
+        ]);
+
+        $page = $this->get('/production-history?process_id='.$binding->id.'&production_date=2026-07-05&shift=all');
+        $export = $this->get('/reports/production-hourly?production_date=2026-07-05&shift=all&process_id='.$binding->id);
+
+        $page->assertOk();
+        $page->assertSee('value="all" selected', false);
+        $page->assertSee('08:10 · AMZ / A-10F = 4, Reject = 0');
+        $page->assertSee('16:10 · AMZ / A-10F = 6, Reject = 1');
+        $page->assertSee('G: 10');
+        $page->assertSee('R: 1');
+        $export->assertOk();
+        $this->assertStringContainsString('16:10 · AMZ / A-10F = 6, Reject = 1', $this->xlsxSheetXml($export->getContent()));
     }
 
     public function test_production_input_chooses_production_code_for_size_point(): void
