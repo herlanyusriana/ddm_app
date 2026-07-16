@@ -885,7 +885,7 @@ class ProductionAdminTest extends TestCase
         $response->assertSee('visibilitychange');
     }
 
-    public function test_automatic_dashboard_polling_keeps_following_the_active_shift(): void
+    public function test_automatic_dashboard_polling_does_not_overwrite_filter_fields(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-04 15:59:00', 'Asia/Jakarta'));
 
@@ -893,8 +893,8 @@ class ProductionAdminTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('data-summary-url="/api/dashboard-summary"', false);
-        $response->assertSee('input[name="production_date"]', false);
-        $response->assertSee('select[name="shift"]', false);
+        $response->assertDontSee('dateInput.value = payload.date', false);
+        $response->assertDontSee('shiftSelect.value = payload.shift', false);
 
         CarbonImmutable::setTestNow();
     }

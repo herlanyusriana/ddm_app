@@ -254,15 +254,6 @@
         const updated = dashboard.querySelector('[data-realtime-updated]');
 
         const render = (payload) => {
-            const dateInput = document.querySelector('input[name="production_date"]');
-            const shiftSelect = document.querySelector('select[name="shift"]');
-            if (dateInput) {
-                dateInput.value = payload.date;
-            }
-            if (shiftSelect) {
-                shiftSelect.value = payload.shift;
-            }
-
             dashboard.querySelector('[data-dashboard-total]').textContent = formatNumber(payload.totals.total_qty);
             dashboard.querySelector('[data-dashboard-good]').textContent = formatNumber(payload.totals.good_qty);
             dashboard.querySelector('[data-dashboard-reject]').textContent = formatNumber(payload.totals.reject_qty);
