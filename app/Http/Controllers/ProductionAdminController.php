@@ -1884,9 +1884,19 @@ class ProductionAdminController extends Controller
                 ."\nTOTAL G: ".(int) $bucket->sum('good_qty').' · R: '.(int) $bucket->sum('ng_qty');
         }, $this->hourlyEntryBuckets($entries, $date, $shift));
 
+        $identityTotals = $isBinding
+            ? [
+                "TOTAL OPERATOR\n".$entries->pluck('operator_id')->filter()->unique()->count(),
+                "TOTAL TARGET\n".$entries
+                    ->filter(fn (ProductionEntry $entry) => $entry->operator_id)
+                    ->unique('operator_id')
+                    ->sum(fn (ProductionEntry $entry) => (int) ($entry->operator?->target_prod ?? 0)),
+            ]
+            : [''];
+
         return [
             'TOTAL PER JAM',
-            ...array_fill(0, $isBinding ? 2 : 1, ''),
+            ...$identityTotals,
             ...$hourTotals,
             (int) $entries->sum('good_qty'),
             (int) $entries->sum('ng_qty'),
